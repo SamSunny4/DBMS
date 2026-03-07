@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Upload, FileText, CheckCircle, AlertCircle } from "lucide-react";
-import { uploadTransactions } from "@/lib/api";
+import { uploadTransactions, clearDatabase } from "@/lib/api";
 
 export default function UploadForm() {
   const [dragover, setDragover] = useState(false);
@@ -10,7 +10,24 @@ export default function UploadForm() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearResult, setClearResult] = useState(null);
   const inputRef = useRef(null);
+
+  const handleClear = async () => {
+    if (!window.confirm('Delete ALL nodes and transactions from the database? This cannot be undone.')) return;
+    setClearing(true);
+    setClearResult(null);
+    setError(null);
+    try {
+      const data = await clearDatabase();
+      setClearResult(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const handleFile = (f) => {
     setFile(f);
@@ -100,6 +117,30 @@ export default function UploadForm() {
         </div>
       )}
 
+      {/* Clear database */}
+      <div className="flex items-center justify-between rounded-lg border border-card-border bg-card p-4">
+        <div>
+          <p className="text-sm font-medium">Clear Database</p>
+          <p className="text-xs text-muted">Remove all nodes and transactions from Neo4j</p>
+        </div>
+        <button
+          onClick={handleClear}
+          disabled={clearing}
+          className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-80 disabled:opacity-50"
+        >
+          {clearing ? 'Clearing...' : 'Clear Database'}
+        </button>
+      </div>
+
+      {clearResult && (
+        <div className="rounded-lg border border-success/30 bg-success/5 p-4">
+          <div className="flex items-center gap-2 text-success">
+            <CheckCircle size={18} />
+            <span className="text-sm font-semibold">Database cleared — {clearResult.nodesDeleted} node(s) deleted</span>
+          </div>
+        </div>
+      )}
+
       {/* Result */}
       {result && (
         <div className="rounded-lg border border-success/30 bg-success/5 p-5">
@@ -140,13 +181,18 @@ export default function UploadForm() {
 
       {/* Format reference */}
       <div className="rounded-lg border border-card-border bg-card p-5">
-        <h3 className="text-sm font-semibold">Expected Format</h3>
-        <p className="mt-1 text-xs text-muted">
-          CSV or JSON with these fields:
-        </p>
-        <code className="mt-2 block rounded bg-background p-3 font-mono text-xs text-muted">
-          wallet_from, wallet_to, amount, timestamp, coin_type, transaction_id
+        <h3 className="text-sm font-semibold">Supported Formats</h3>
+        <p className="mt-3 text-xs font-medium text-muted uppercase tracking-wide">Internal format (CSV / JSON)</p>
+        <code className="mt-1 block rounded bg-background p-3 font-mono text-xs text-muted">
+          transaction_id, wallet_from, wallet_to, amount, coin_type, timestamp
         </code>
+        <p className="mt-3 text-xs font-medium text-muted uppercase tracking-wide">BigQuery Ethereum export (CSV)</p>
+        <code className="mt-1 block rounded bg-background p-3 font-mono text-xs text-muted">
+          transaction_hash, from_address, to_address, value (Wei), block_timestamp, block_number, …
+        </code>
+        <p className="mt-2 text-xs text-muted">
+          BigQuery rows are auto-detected and normalised — Wei values are converted to ETH, coin type is set to ETH.
+        </p>
       </div>
     </div>
   );

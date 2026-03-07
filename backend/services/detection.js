@@ -219,8 +219,8 @@ export async function bulkRiskScores(addresses, existingSession) {
        WITH w, addr, count(out) AS outDeg
        OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
        WITH w, addr, outDeg, count(inr) AS inDeg
-       OPTIONAL MATCH (w)-[:TRANSFER*2..4]->(w)
-       WITH addr, outDeg, inDeg, count(*) AS cycles
+       OPTIONAL MATCH p = (w)-[:TRANSFER*2..4]->(w)
+       WITH addr, outDeg, inDeg, count(p) AS cycles
        WITH addr, outDeg, inDeg, cycles,
             CASE WHEN outDeg * 5 < 25 THEN outDeg * 5 ELSE 25 END AS foScore,
             CASE WHEN inDeg * 5 < 25 THEN inDeg * 5 ELSE 25 END AS fiScore,

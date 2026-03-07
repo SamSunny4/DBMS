@@ -14,6 +14,17 @@ import LoadingSpinner from "../../components/LoadingSpinner";
 import GraphViewer from "../../components/GraphViewer";
 import { getWallet, getGraph } from "@/lib/api";
 
+function formatETH(n) {
+  if (n == null || isNaN(n)) return '0';
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  // Very small values — show in scientific notation so they're not rounded to 0
+  if (abs < 1e-8) return n.toExponential(4);
+  // Small values — show enough significant figures
+  if (abs < 1) return n.toPrecision(6);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 8 });
+}
+
 export default function WalletDetailPage({ params }) {
   const { address } = use(params);
   const decodedAddress = decodeURIComponent(address);
@@ -198,9 +209,7 @@ export default function WalletDetailPage({ params }) {
                       </button>
                     </td>
                     <td className="font-mono text-xs">
-                      {tx.amount?.toLocaleString(undefined, {
-                        maximumFractionDigits: 8,
-                      })}
+                      {formatETH(tx.amount)}
                     </td>
                     <td className="text-xs">{tx.coin_type}</td>
                     <td className="text-xs text-muted">{tx.timestamp}</td>

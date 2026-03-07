@@ -20,6 +20,6 @@ export async function closeDriver() {
   }
 }
 
-export function getSession(database = 'neo4j') {
+export function getSession(database = process.env.NEO4J_DATABASE || 'neo4j') {
   return getDriver().session({ database });
 }

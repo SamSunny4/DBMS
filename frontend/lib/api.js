@@ -43,6 +43,10 @@ export async function getSuspicious({ type = 'circular', threshold = 5, limit = 
   return request(`/suspicious?${params.toString()}`);
 }
 
+export async function clearDatabase() {
+  return request('/clear-database', { method: 'DELETE' });
+}
+
 export async function uploadTransactions(file) {
   const formData = new FormData();
   formData.append('file', file);

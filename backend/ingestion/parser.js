@@ -9,6 +9,40 @@ const REQUIRED_FIELDS = [
   'transaction_id',
 ];
 
+// BigQuery Ethereum transaction schema field names
+const BIGQUERY_FIELDS = ['transaction_hash', 'from_address', 'block_timestamp'];
+
+function isBigQuerySchema(row) {
+  return BIGQUERY_FIELDS.every((f) => f in row);
+}
+
+// Convert a BigQuery row to internal format.
+// value is in Wei (1 ETH = 1e18 Wei).
+function normalizeBigQueryRow(row) {
+  let amount = 0;
+  const valStr = String(row.value || '0').trim();
+  // parseFloat handles all formats: integers, decimals, and scientific notation
+  // (e.g. BigQuery numeric exports like 1.5E+16 Wei).  BigInt would silently
+  // truncate "1.5E+16" to "1" Wei, producing 0 ETH displayed.
+  const weiFloat = parseFloat(valStr);
+  amount = isNaN(weiFloat) ? 0 : weiFloat / 1e18;
+
+  // block_timestamp may be a Unix epoch (integer) or ISO string
+  let timestamp = String(row.block_timestamp || '').trim();
+  if (/^\d+$/.test(timestamp)) {
+    timestamp = new Date(parseInt(timestamp, 10) * 1000).toISOString();
+  }
+
+  return {
+    wallet_from: String(row.from_address || '').trim(),
+    wallet_to: String(row.to_address || '').trim(),
+    amount,
+    timestamp,
+    coin_type: 'ETH',
+    transaction_id: String(row.transaction_hash || '').trim(),
+  };
+}
+
 export function parseCSV(text) {
   const result = Papa.parse(text, {
     header: true,
@@ -56,12 +90,24 @@ function validateTransactions(rows) {
     throw new Error('File contains no transaction records');
   }
 
+  // Auto-detect BigQuery schema from the first non-empty row
+  const sample = rows.find((r) => Object.keys(r).length > 0) || rows[0];
+  const isBigQuery = isBigQuerySchema(sample);
+
   const errors = [];
   const validated = [];
 
   for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+    const raw = rows[i];
     const rowNum = i + 1;
+
+    const row = isBigQuery ? normalizeBigQueryRow(raw) : raw;
+
+    // Skip rows with no to_address (contract creation) when using BigQuery schema
+    if (isBigQuery && !row.wallet_to) {
+      continue;
+    }
+
     const missing = REQUIRED_FIELDS.filter((f) => !row[f] && row[f] !== 0);
 
     if (missing.length > 0) {
