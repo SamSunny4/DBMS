@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# CryptoSentinel — Blockchain Fraud Detection
+
+Graph-based money laundering and fraud detection platform built with **Next.js**, **Fastify**, **Neo4j**, and **Cytoscape.js**.
+
+## Project Structure
+
+```
+crypto-sentinel/
+├── backend/          # Fastify API server (port 4000)
+│   ├── neo4j/        # Neo4j driver & schema
+│   ├── ingestion/    # CSV/JSON parsers
+│   ├── services/     # Detection, ingestion, graph transforms
+│   ├── routes/       # REST endpoints
+│   └── server.js     # Entry point
+├── frontend/         # Next.js app (port 3000)
+│   ├── app/          # App Router pages & components
+│   ├── lib/          # API client
+│   └── public/       # Static assets & sample data
+└── README.md
+```
+
+## Prerequisites
+
+- **Node.js** 18+
+- **Neo4j Desktop** running on `bolt://localhost:7687`
 
 ## Getting Started
 
-First, run the development server:
+### 1. Backend
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd backend
+cp .env.example .env   # then edit with your Neo4j credentials
+npm install
+npm run dev            # starts on http://localhost:4000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Frontend
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
+npm run dev            # starts on http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Load Sample Data
 
-## Learn More
+Navigate to **http://localhost:3000/upload** and upload `frontend/public/sample-data.csv`.
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Backend (`backend/.env`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Default | Description |
+|---|---|---|
+| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection URI |
+| `NEO4J_USER` | `neo4j` | Neo4j username |
+| `NEO4J_PASSWORD` | — | Neo4j password |
+| `PORT` | `4000` | Server port |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
 
-## Deploy on Vercel
+### Frontend (`frontend/.env.local`)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variable | Default | Description |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | Backend API URL |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/stats` | Dashboard statistics |
+| `POST` | `/upload-transactions` | Upload CSV/JSON transaction data |
+| `GET` | `/graph` | Fetch graph data for visualization |
+| `GET` | `/wallet/:address` | Wallet details with risk score |
+| `GET` | `/transactions/path` | Shortest path between two wallets |
+| `GET` | `/suspicious` | Detect suspicious patterns |

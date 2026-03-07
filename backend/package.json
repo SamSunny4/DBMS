@@ -1,0 +1,18 @@
+{
+  "name": "crypto-sentinel-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0",
+    "neo4j-driver": "^5.27.0",
+    "papaparse": "^5.5.2"
+  }
+}
