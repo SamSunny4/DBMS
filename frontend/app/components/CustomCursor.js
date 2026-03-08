@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 /**
  * CustomCursor — replaces the native cursor site-wide.
@@ -11,6 +12,7 @@ import { useEffect, useRef } from "react";
  *  • graph-node  – targeting crosshair + scan ring colored to the node's risk hue
  */
 export default function CustomCursor() {
+  const pathname = usePathname();
   const dotRef = useRef(null);
   const ringRef = useRef(null);
   const brac1Ref = useRef(null); // corner brackets (4)
@@ -18,6 +20,20 @@ export default function CustomCursor() {
   const brac3Ref = useRef(null);
   const brac4Ref = useRef(null);
   const labelRef = useRef(null);
+
+  // ── Reset cursor to default on every route change ─────────────────
+  useEffect(() => {
+    const ring  = ringRef.current;
+    const b1    = brac1Ref.current;
+    const b2    = brac2Ref.current;
+    const b3    = brac3Ref.current;
+    const b4    = brac4Ref.current;
+    const label = labelRef.current;
+    if (!ring) return;
+    ring.classList.remove("cursor--node", "cursor--clickable");
+    [b1, b2, b3, b4].forEach((b) => b?.classList.remove("cursor-bracket--active"));
+    if (label) label.classList.remove("cursor-label--visible");
+  }, [pathname]);
 
   useEffect(() => {
     const dot   = dotRef.current;
@@ -70,7 +86,12 @@ export default function CustomCursor() {
     window.addEventListener("mouseout",   onOut,  { passive: true });
 
     // ── Mouse down/up feedback ───────────────────────────────────────
-    const onDown = () => dot.classList.add("cursor--press");
+    const resetNode = () => {
+      ring.classList.remove("cursor--node");
+      [b1, b2, b3, b4].forEach((b) => b.classList.remove("cursor-bracket--active"));
+      label.classList.remove("cursor-label--visible");
+    };
+    const onDown = () => { dot.classList.add("cursor--press"); resetNode(); };
     const onUp   = () => dot.classList.remove("cursor--press");
     window.addEventListener("mousedown", onDown, { passive: true });
     window.addEventListener("mouseup",   onUp,   { passive: true });
