@@ -12,6 +12,7 @@ const INGEST_CYPHER = `
   MERGE (from)-[t:TRANSFER {txid: tx.transaction_id}]->(to)
   ON CREATE SET
     t.amount = toFloat(tx.amount),
+    t.value_lossless = tx.value_lossless,
     t.timestamp = tx.timestamp,
     t.coin_type = tx.coin_type
   RETURN count(*) AS created

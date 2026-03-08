@@ -1,11 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Filter, Route, AlertCircle } from "lucide-react";
+import { Filter, Route, AlertCircle, Box, Grid2x2, Palette, Timer, Crosshair } from "lucide-react";
 import GraphViewer from "../components/GraphViewer";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { getGraph, getTransactionPath } from "@/lib/api";
+
+// Dynamic import for 3D viewer (not SSR-compatible due to WebGL/Three.js)
+const GraphViewer3D = dynamic(() => import("../components/GraphViewer3D"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center">
+      <LoadingSpinner text="Loading 3D engine..." />
+    </div>
+  ),
+});
 
 export default function GraphExplorerPage() {
   const router = useRouter();
@@ -15,10 +26,17 @@ export default function GraphExplorerPage() {
   const [graphInfo, setGraphInfo] = useState(null);
   const [highlightPath, setHighlightPath] = useState([]);
 
+  // View mode
+  const [viewMode, setViewMode] = useState("3d"); // "2d" | "3d"
+
   // Filters
   const [nodeLimit, setNodeLimit] = useState(200);
   const [coinFilter, setCoinFilter] = useState("");
   const [centerAddress, setCenterAddress] = useState("");
+  const [volumeThreshold, setVolumeThreshold] = useState(0);
+  const [colorMode, setColorMode] = useState("risk"); // "risk" | "cluster"
+  const [animateTime, setAnimateTime] = useState(false);
+  const [layoutMode, setLayoutMode] = useState("force"); // "force" | "fraud"
 
   // Path finder
   const [pathFrom, setPathFrom] = useState("");
@@ -79,6 +97,30 @@ export default function GraphExplorerPage() {
       <div className="flex flex-wrap items-center gap-4 border-b border-card-border bg-card px-6 py-3">
         <h1 className="text-lg font-bold tracking-tight">Graph Explorer</h1>
 
+        {/* 2D / 3D toggle */}
+        <div className="flex items-center rounded-md border border-card-border bg-background">
+          <button
+            onClick={() => setViewMode("2d")}
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "2d"
+                ? "bg-accent text-white"
+                : "text-muted hover:text-foreground"
+            } rounded-l-md`}
+          >
+            <Grid2x2 size={12} /> 2D
+          </button>
+          <button
+            onClick={() => setViewMode("3d")}
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "3d"
+                ? "bg-accent text-white"
+                : "text-muted hover:text-foreground"
+            } rounded-r-md`}
+          >
+            <Box size={12} /> 3D
+          </button>
+        </div>
+
         {graphInfo && (
           <span className="text-xs text-muted">
             {graphInfo.nodeCount} nodes · {graphInfo.edgeCount} edges
@@ -119,6 +161,74 @@ export default function GraphExplorerPage() {
               Apply
             </button>
           </div>
+
+          {/* value_lossless threshold (3D mode) */}
+          {viewMode === "3d" && (
+            <div className="flex items-center gap-1.5 border-l border-card-border pl-2">
+              <span className="text-[10px] text-muted whitespace-nowrap">Vol-threshold</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volumeThreshold}
+                onChange={(e) =>
+                  setVolumeThreshold(parseFloat(e.target.value))
+                }
+                className="h-1 w-20 cursor-pointer accent-accent"
+              />
+              <span className="w-8 text-right text-[10px] font-mono text-muted">
+                {(volumeThreshold * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
+
+          {/* Color mode toggle (3D mode) */}
+          {viewMode === "3d" && (
+            <div className="flex items-center gap-1.5 border-l border-card-border pl-2">
+              <Palette size={12} className="text-muted" />
+              <button
+                onClick={() => setColorMode(colorMode === "risk" ? "cluster" : "risk")}
+                className="rounded border border-card-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted hover:text-foreground transition-colors"
+              >
+                {colorMode === "risk" ? "Risk" : "Cluster"}
+              </button>
+            </div>
+          )}
+
+          {/* Temporal animation toggle (3D mode) */}
+          {viewMode === "3d" && (
+            <div className="flex items-center gap-1.5 border-l border-card-border pl-2">
+              <Timer size={12} className="text-muted" />
+              <button
+                onClick={() => setAnimateTime(!animateTime)}
+                className={`rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                  animateTime
+                    ? "border-accent bg-accent/20 text-accent"
+                    : "border-card-border bg-background text-muted hover:text-foreground"
+                }`}
+              >
+                {animateTime ? "Timeline ▶" : "Timeline"}
+              </button>
+            </div>
+          )}
+
+          {/* Layout mode toggle (3D mode) */}
+          {viewMode === "3d" && (
+            <div className="flex items-center gap-1.5 border-l border-card-border pl-2">
+              <Crosshair size={12} className="text-muted" />
+              <button
+                onClick={() => setLayoutMode(layoutMode === "force" ? "fraud" : "force")}
+                className={`rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                  layoutMode === "fraud"
+                    ? "border-warning bg-warning/20 text-warning"
+                    : "border-card-border bg-background text-muted hover:text-foreground"
+                }`}
+              >
+                {layoutMode === "fraud" ? "⚠ Fraud Layout" : "Force Layout"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -172,12 +282,25 @@ export default function GraphExplorerPage() {
           </div>
         ) : elements &&
           (elements.nodes?.length > 0 || elements.edges?.length > 0) ? (
-          <GraphViewer
-            elements={elements}
-            onNodeClick={handleNodeClick}
-            highlightPath={highlightPath}
-            style={{ width: "100%", height: "100%" }}
-          />
+          viewMode === "3d" ? (
+            <GraphViewer3D
+              elements={elements}
+              onNodeClick={handleNodeClick}
+              highlightPath={highlightPath}
+              volumeThreshold={volumeThreshold}
+              colorMode={colorMode}
+              animateTime={animateTime}
+              layoutMode={layoutMode}
+              style={{ width: "100%", height: "100%" }}
+            />
+          ) : (
+            <GraphViewer
+              elements={elements}
+              onNodeClick={handleNodeClick}
+              highlightPath={highlightPath}
+              style={{ width: "100%", height: "100%" }}
+            />
+          )
         ) : (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">

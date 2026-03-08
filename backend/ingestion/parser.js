@@ -33,10 +33,14 @@ function normalizeBigQueryRow(row) {
     timestamp = new Date(parseInt(timestamp, 10) * 1000).toISOString();
   }
 
+  // Preserve value_lossless (raw Wei string) for 3D graph Z-axis mapping
+  const valueLossless = String(row.value_lossless || row.value || '0').trim();
+
   return {
     wallet_from: String(row.from_address || '').trim(),
     wallet_to: String(row.to_address || '').trim(),
     amount,
+    value_lossless: valueLossless,
     timestamp,
     coin_type: 'ETH',
     transaction_id: String(row.transaction_hash || '').trim(),
@@ -129,6 +133,7 @@ function validateTransactions(rows) {
       wallet_from: String(row.wallet_from).trim(),
       wallet_to: String(row.wallet_to).trim(),
       amount,
+      value_lossless: String(row.value_lossless || row.amount || '0').trim(),
       timestamp: String(row.timestamp).trim(),
       coin_type: String(row.coin_type).trim().toUpperCase(),
       transaction_id: String(row.transaction_id).trim(),

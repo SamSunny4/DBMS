@@ -53,6 +53,27 @@ body {
   border-radius: 0.75rem;
 }
 
+/* 3D Graph container */
+.graph-container-3d {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  background: #0a0a0f;
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.graph-container-3d canvas {
+  border-radius: 0.75rem;
+}
+
+/* 3D tooltip override (3d-force-graph injects a div.graph-tooltip) */
+.graph-tooltip {
+  pointer-events: none !important;
+  z-index: 1000 !important;
+}
+
 /* Risk badge styles */
 .risk-badge {
   display: inline-flex;

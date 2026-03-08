@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -9,10 +10,18 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
+  Grid2x2,
+  Box,
 } from "lucide-react";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import GraphViewer from "../../components/GraphViewer";
 import { getWallet, getGraph } from "@/lib/api";
+
+// Dynamic import — 3d-force-graph uses WebGL and cannot run server-side
+const GraphViewer3D = dynamic(() => import("../../components/GraphViewer3D"), {
+  ssr: false,
+  loading: () => <LoadingSpinner text="Loading 3D view..." />,
+});
 
 function formatETH(n) {
   if (n == null || isNaN(n)) return '0';
@@ -33,6 +42,7 @@ export default function WalletDetailPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [graphElements, setGraphElements] = useState(null);
+  const [view3D, setView3D] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
@@ -139,19 +149,52 @@ export default function WalletDetailPage({ params }) {
         (graphElements.nodes?.length > 0 ||
           graphElements.edges?.length > 0) && (
           <div className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold">
-              Transaction Neighborhood
-            </h2>
-            <GraphViewer
-              elements={graphElements}
-              onNodeClick={(addr) =>
-                router.push(`/wallet/${encodeURIComponent(addr)}`)
-              }
-              highlightedNodes={
-                wallet.riskScore >= 30 ? [decodedAddress] : []
-              }
-              style={{ height: "350px" }}
-            />
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Transaction Neighborhood</h2>
+              {/* 2D / 3D toggle */}
+              <div className="flex overflow-hidden rounded-md border border-card-border">
+                <button
+                  onClick={() => setView3D(false)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+                    !view3D ? "bg-accent text-white" : "text-muted hover:text-foreground"
+                  } rounded-l-md`}
+                >
+                  <Grid2x2 size={12} /> 2D
+                </button>
+                <button
+                  onClick={() => setView3D(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+                    view3D ? "bg-accent text-white" : "text-muted hover:text-foreground"
+                  } rounded-r-md`}
+                >
+                  <Box size={12} /> 3D
+                </button>
+              </div>
+            </div>
+
+            {view3D ? (
+              <GraphViewer3D
+                elements={graphElements}
+                onNodeClick={(addr) =>
+                  router.push(`/wallet/${encodeURIComponent(addr)}`)
+                }
+                highlightedNodes={
+                  wallet.riskScore >= 30 ? [decodedAddress] : []
+                }
+                style={{ height: "400px" }}
+              />
+            ) : (
+              <GraphViewer
+                elements={graphElements}
+                onNodeClick={(addr) =>
+                  router.push(`/wallet/${encodeURIComponent(addr)}`)
+                }
+                highlightedNodes={
+                  wallet.riskScore >= 30 ? [decodedAddress] : []
+                }
+                style={{ height: "350px" }}
+              />
+            )}
           </div>
         )}
 
