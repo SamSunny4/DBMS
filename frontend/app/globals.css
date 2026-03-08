@@ -1,5 +1,142 @@
 @import "tailwindcss";
 
+/* ══════════════════════════════════════════════════════════════════
+   CUSTOM CURSOR — hide native cursor everywhere
+   ══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  cursor: none !important;
+}
+
+/* Shared base for all cursor pieces */
+.cursor-dot,
+.cursor-ring,
+.cursor-bracket,
+.cursor-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 99999;
+  will-change: transform;
+}
+
+/* ── Center dot ── */
+.cursor-dot {
+  width: 5px;
+  height: 5px;
+  background: #e4e4e7;
+  border-radius: 50%;
+  margin-top: -2.5px;
+  margin-left: -2.5px;
+  transition: background-color 0.2s;
+}
+.cursor-dot.cursor--press {
+  width: 3px;
+  height: 3px;
+  margin-top: -1.5px;
+  margin-left: -1.5px;
+}
+
+/* ── Outer ring ── */
+.cursor-ring {
+  --ring-size: 22px;
+  --c-ring: #6366f1;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  border: 1.5px solid var(--c-ring);
+  box-shadow: 0 0 6px var(--c-ring);
+  margin-top: calc(var(--ring-size) / -2);
+  margin-left: calc(var(--ring-size) / -2);
+  clip-path: circle(50% at 50% 50%);
+  transition:
+    width 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    margin 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.2s,
+    box-shadow 0.2s,
+    opacity 0.2s,
+    clip-path 0.22s ease-in;
+}
+.cursor-ring.cursor--clickable {
+  --ring-size: 34px;
+}
+/* On node hover: ring collapses to the centre point and disappears.
+   clip-path shrinks toward center without touching transform (JS-controlled). */
+.cursor-ring.cursor--node {
+  clip-path: circle(0% at 50% 50%);
+  opacity: 0;
+}
+
+/* ── Corner brackets (targeting reticle) ── */
+.cursor-bracket {
+  width: 10px;
+  height: 10px;
+  border-color: var(--c-ring, #6366f1);
+  border-style: solid;
+  opacity: 0;
+  transition:
+    opacity 0.25s ease,
+    translate 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+  Each bracket is offset from the mouse-center via the CSS `translate`
+  individual transform (stacks on top of JS's transform: translate(x,y)).
+  Active:   tight around the 46px ring (≈ ±28px from centre)
+  Inactive: spread an extra 18px further out
+*/
+.cursor-bracket--tl {
+  border-width: 1.5px 0 0 1.5px;
+  translate: -38px -38px;
+  margin-top: 0;
+  margin-left: 0;
+}
+.cursor-bracket--tr {
+  border-width: 1.5px 1.5px 0 0;
+  translate: 28px -38px;
+}
+.cursor-bracket--bl {
+  border-width: 0 0 1.5px 1.5px;
+  translate: -38px 28px;
+}
+.cursor-bracket--br {
+  border-width: 0 1.5px 1.5px 0;
+  translate: 28px 28px;
+}
+
+.cursor-bracket--active {
+  opacity: 1;
+}
+.cursor-bracket--active.cursor-bracket--tl { translate: -30px -30px; }
+.cursor-bracket--active.cursor-bracket--tr { translate:  20px -30px; }
+.cursor-bracket--active.cursor-bracket--bl { translate: -30px  20px; }
+.cursor-bracket--active.cursor-bracket--br { translate:  20px  20px; }
+
+/* ── Floating node label ── */
+.cursor-label {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: rgba(5, 8, 22, 0.88);
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  padding: 1px 7px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cursor-label--visible {
+  opacity: 1;
+}
+
+/* ── Keyframes ── */
+@keyframes cursor-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
 :root {
   --background: #0a0a0f;
   --foreground: #e4e4e7;

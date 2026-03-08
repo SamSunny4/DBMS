@@ -555,8 +555,10 @@ export default function GraphViewer3D({
         }
       })
       .onNodeHover((node) => {
-        container.style.cursor = node ? "pointer" : "default";
         hoveredNodeRef.current = node || null;
+        window.dispatchEvent(
+          new CustomEvent("graph-node-hover", { detail: { node: node || null } })
+        );
       })
       .enableNodeDrag(false); // drag only when Ctrl is held
 

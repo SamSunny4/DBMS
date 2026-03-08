@@ -297,7 +297,9 @@ export default function GraphViewer({
         }
       })
       .onNodeHover((node) => {
-        container.style.cursor = node ? "pointer" : "default";
+        window.dispatchEvent(
+          new CustomEvent("graph-node-hover", { detail: { node: node || null } })
+        );
       });
 
     // Middle-click: open wallet in new tab
