@@ -19,9 +19,17 @@ import {
   BarChart3,
   AlertTriangle,
   Globe,
+  Code2,
+  Layers,
+  TrendingUp,
+  Clock,
+  Box,
+  Link2,
+  Hash,
 } from "lucide-react";
 
 import CyberNetworkCanvas from "./CyberNetworkCanvas";
+import { ShaderAnimation } from "./ShaderLines";
 
 // Legacy NetworkCanvas replaced by CyberNetworkCanvas
 /*
@@ -484,19 +492,19 @@ function DemoSection() {
             <LiveLogFeed />
             <div className="landing-mini-panel">
               <div className="landing-mini-panel-header">
-                <BarChart3 size={12} className="text-indigo-400" />
+                <BarChart3 size={12} className="text-red-500" />
                 <span>ANALYSIS METRICS</span>
               </div>
               <div className="landing-mini-panel-body">
                 <div className="landing-mini-stat">
                   <span className="text-zinc-500">Nodes Scanned</span>
-                  <span className="text-indigo-400 font-bold">
+                  <span className="text-red-500 font-bold">
                     <AnimatedCounter target={1847} />
                   </span>
                 </div>
                 <div className="landing-mini-stat">
                   <span className="text-zinc-500">Edges Analyzed</span>
-                  <span className="text-indigo-400 font-bold">
+                  <span className="text-red-500 font-bold">
                     <AnimatedCounter target={3214} />
                   </span>
                 </div>
@@ -536,7 +544,7 @@ function DemoSection() {
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500/80" />
               </div>
               <span className="landing-demo-video-title">
-                <Eye size={11} className="inline-block mr-1.5 text-indigo-400" />
+                <Eye size={11} className="inline-block mr-1.5 text-red-500" />
                 SYSTEM DEMO // LIVE REPLAY
               </span>
               <span className="landing-demo-video-badge">
@@ -575,14 +583,124 @@ export default function LandingPage() {
   const router = useRouter();
   const [scrollY, setScrollY] = useState(0);
 
+  // Shader intro: "playing" → "fading" → "done"
+  const [introPhase, setIntroPhase] = useState("playing");
+  const [redProgress, setRedProgress] = useState(0);
+  // Letters: D . B . M . S — we track how many visible (7 → 0)
+  const letters = ["D", ".", "B", ".", "M", ".", "S"];
+  const [visibleCount, setVisibleCount] = useState(7);
+
+  // Scroll/wheel drives the red transition + letter removal
+  useEffect(() => {
+    if (introPhase !== "playing") return;
+    let accumulated = 0;
+    const maxScroll = 1400;
+
+    const advance = (delta) => {
+      accumulated += delta;
+      const progress = Math.min(accumulated / maxScroll, 1);
+      setRedProgress(progress);
+
+      // Letters disappear one by one: last letter goes at ~15%, next at ~30%, etc.
+      const lettersGone = Math.floor(progress * 9); // 0-7 range across 0-0.78 progress
+      setVisibleCount(Math.max(0, 7 - lettersGone));
+
+      if (progress >= 1) {
+        setIntroPhase("fading");
+        setTimeout(() => setIntroPhase("done"), 1200);
+      }
+    };
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      advance(Math.abs(e.deltaY));
+    };
+    let touchY = null;
+    const onTouchStart = (e) => { touchY = e.touches[0].clientY; };
+    const onTouchMove = (e) => {
+      if (touchY === null) return;
+      e.preventDefault();
+      const delta = Math.abs(e.touches[0].clientY - touchY);
+      touchY = e.touches[0].clientY;
+      advance(delta);
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [introPhase]);
+
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Lock scroll during intro
+  useEffect(() => {
+    if (introPhase !== "done") {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [introPhase]);
+
   return (
     <div className="landing-root">
+
+      {/* ════════════ SHADER INTRO OVERLAY ════════════ */}
+      {introPhase !== "done" && (
+        <div className={`shader-intro-overlay ${
+          introPhase === "fading" ? "shader-intro-fading" : ""
+        }`}>
+          <ShaderAnimation redProgress={redProgress} />
+          {/* Black overlay that fades in as you scroll, creating shader→black */}
+          <div className="shader-black-overlay" style={{ opacity: Math.pow(redProgress, 2.5) }} />
+          <div className="shader-intro-content">
+            <h1 className="shader-intro-title">
+              {letters.map((ch, i) => (
+                <span
+                  key={i}
+                  className="shader-letter"
+                  style={{
+                    opacity: i < visibleCount ? 1 : 0,
+                    transform: i < visibleCount ? "translateY(0)" : "translateY(-20px)",
+                  }}
+                >
+                  {ch}
+                </span>
+              ))}
+            </h1>
+            <div className={`shader-intro-sub ${
+              visibleCount < 5 ? "shader-intro-sub-hide" : ""
+            }`}>
+              <span className="shader-intro-line" />
+              <span className="font-mono text-xs tracking-[0.3em] text-white/40 uppercase">
+                Distributed Blockchain Monitoring System
+              </span>
+              <span className="shader-intro-line" />
+            </div>
+            {visibleCount === 7 && redProgress < 0.05 && (
+              <div className="shader-scroll-hint">
+                <span className="shader-scroll-text">SCROLL</span>
+                <div className="shader-scroll-arrow" />
+              </div>
+            )}
+          </div>
+          <div className="shader-intro-scanlines" aria-hidden="true" />
+        </div>
+      )}
+
+      {/* Only mount landing once fading/done — fade in from black */}
+      {introPhase !== "playing" && (
+      <div className={`landing-fade-in ${introPhase === "done" ? "landing-visible" : ""}`}>
+      <>
       {/* ════════════ Full-screen cyber network background ════════════ */}
       <div className="cyber-network-bg" aria-hidden="true">
         <CyberNetworkCanvas />
@@ -596,7 +714,7 @@ export default function LandingPage() {
       >
         <div className="landing-nav-inner">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600/90 shadow-lg shadow-indigo-500/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-800/80 shadow-lg shadow-red-900/20">
               <ShieldAlert size={16} className="text-white" />
             </div>
             <div>
@@ -614,6 +732,15 @@ export default function LandingPage() {
             </a>
             <a href="#demo" className="hidden sm:inline text-xs text-zinc-400 hover:text-white transition-colors font-mono">
               DEMO
+            </a>
+            <a href="#schema" className="hidden sm:inline text-xs text-zinc-400 hover:text-white transition-colors font-mono">
+              SCHEMA
+            </a>
+            <a href="#detection" className="hidden sm:inline text-xs text-zinc-400 hover:text-white transition-colors font-mono">
+              DETECTION
+            </a>
+            <a href="#risk" className="hidden sm:inline text-xs text-zinc-400 hover:text-white transition-colors font-mono">
+              SCORING
             </a>
             <button
               onClick={() => router.push("/login")}
@@ -668,7 +795,7 @@ export default function LandingPage() {
           </p>
 
           {/* CTA */}
-          <div className="flex flex-wrap items-center gap-4 mt-8">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-10">
             <button
               onClick={() => router.push("/login")}
               className="landing-btn-hero"
@@ -738,7 +865,7 @@ export default function LandingPage() {
               icon={Network}
               title="3D Graph Visualization"
               description="Interactive force-directed 3D graph with WASD navigation, volume-scaled Z-axis, curved edges, and animated particles. Inspect wallet clusters from every angle."
-              accent="text-indigo-400"
+              accent="text-red-500"
             />
             <FeatureCard
               icon={ShieldAlert}
@@ -795,13 +922,528 @@ export default function LandingPage() {
             ].map((item) => (
               <div key={item.step} className="landing-pipeline-step">
                 <div className="landing-pipeline-num">{item.step}</div>
-                <item.icon size={20} className="text-indigo-400 mb-3" />
+                <item.icon size={20} className="text-red-500 mb-3" />
                 <h3 className="text-xs font-bold text-zinc-200 tracking-widest mb-2">
                   {item.title}
                 </h3>
                 <p className="text-[11px] text-zinc-500 leading-relaxed">
                   {item.desc}
                 </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ TECH STACK ════════════════════ */}
+      <section id="tech" className="landing-section landing-section-alt">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <Layers size={12} /> TECHNOLOGY STACK
+            </span>
+            <h2 className="landing-section-title">Built on Modern Infrastructure</h2>
+            <p className="landing-section-sub">
+              Purpose-selected tools forming a cohesive blockchain forensics platform — from raw CSV ingestion to interactive 3D graph rendering.
+            </p>
+          </div>
+          <div className="landing-tech-grid">
+            {[
+              { name: "Neo4j", category: "Graph Database", desc: "Native property graph with Cypher. Unique constraints on Wallet.address & Coin.name, indexes on TRANSFER.timestamp and txid, MERGE-based idempotent batch ingestion (1 000 tx/batch).", color: "text-green-400", bg: "bg-green-400/10", badge: "bolt://localhost:7687" },
+              { name: "Next.js 14", category: "Frontend Framework", desc: "React App Router with client-side auth context, dynamic /wallet/[address] routing, role-based page guards, and lazy-loaded Three.js via dynamic import to avoid SSR bundle bloat.", color: "text-blue-400", bg: "bg-blue-400/10", badge: "port 3000" },
+              { name: "Fastify", category: "Backend API", desc: "High-throughput Node.js server. 50 MB multipart file uploads, JWT middleware on every protected route, 10 REST endpoints: graph, detection, wallet, upload, admin, users, logs, stats, settings.", color: "text-amber-400", bg: "bg-amber-400/10", badge: "port 4000" },
+              { name: "Cytoscape.js", category: "2D Graph Engine", desc: "Cola constraint-based layout — repulsion + spring forces, avoidOverlap, 500 ms cap. Risk-HSL node coloring (green→red), dashed USES edges, click-to-wallet navigation.", color: "text-cyan-400", bg: "bg-cyan-400/10", badge: "cytoscape-cola" },
+              { name: "Three.js / WebGL", category: "3D Rendering", desc: "SphereGeometry nodes sized by √volume, AdditiveBlending radial-gradient glow sprites, OrbitControls camera, directional animated particles on highlighted path edges.", color: "text-purple-400", bg: "bg-purple-400/10", badge: "3d-force-graph" },
+              { name: "d3-force-3d", category: "Physics Simulation", desc: "Barnes-Hut many-body simulation with charge + link + center forces and a custom Z-force biasing node height by log-normalized transaction volume. αDecay=0.02, friction=0.3.", color: "text-red-500", bg: "bg-red-500/10", badge: "α-decay 0.02" },
+              { name: "Louvain Algorithm", category: "Community Detection", desc: "In-memory modularity-maximizing clustering on the already-fetched subgraph. No GDS plugin needed. O(E × 20 iterations). Golden-angle hue spacing for maximum cluster color separation.", color: "text-pink-400", bg: "bg-pink-400/10", badge: "community.js" },
+              { name: "JWT / bcrypt", category: "Auth & Security", desc: "Role-based access control (admin / user), 24-hour expiring tokens stored in localStorage. Passwords hashed with bcrypt and stored as User nodes directly in the Neo4j graph.", color: "text-red-400", bg: "bg-red-400/10", badge: "24 h expiry" },
+            ].map((tech) => (
+              <div key={tech.name} className="landing-tech-card">
+                <span className={`landing-tech-badge ${tech.bg} ${tech.color}`}>{tech.category}</span>
+                <h3 className={`text-sm font-bold mt-3 mb-1.5 ${tech.color} font-mono`}>{tech.name}</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">{tech.desc}</p>
+                <code className="text-[10px] text-zinc-600 font-mono">{tech.badge}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ DATABASE SCHEMA ════════════════════ */}
+      <section id="schema" className="landing-section">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <Database size={12} /> DATABASE SCHEMA
+            </span>
+            <h2 className="landing-section-title">Neo4j Graph Data Model</h2>
+            <p className="landing-section-sub">
+              A directed multigraph where wallets are nodes, transactions are edges, and fraud signals emerge from topology rather than content.
+            </p>
+          </div>
+          <div className="landing-schema-layout">
+            {/* Node types */}
+            <div className="landing-schema-card">
+              <div className="landing-schema-card-header text-green-400">
+                <Box size={14} /> NODE TYPES
+              </div>
+              <div className="landing-schema-table">
+                <div className="landing-schema-row landing-schema-header">
+                  <span>Label</span><span>Key Property</span><span>Description</span>
+                </div>
+                {[
+                  { label: "Wallet", key: "address", desc: "Blockchain wallet — unique hash identifier", color: "text-cyan-400" },
+                  { label: "Coin", key: "name", desc: "Crypto type: ETH, BTC, etc.", color: "text-amber-400" },
+                  { label: "User", key: "username", desc: "App user — role, bcrypt hash, ban flag, preferences", color: "text-purple-400" },
+                ].map((n) => (
+                  <div key={n.label} className="landing-schema-row">
+                    <span className={`font-mono font-bold ${n.color}`}>{n.label}</span>
+                    <span className="font-mono text-zinc-400 text-[10px]">{n.key}</span>
+                    <span className="text-zinc-500">{n.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Relationship types */}
+            <div className="landing-schema-card">
+              <div className="landing-schema-card-header text-red-500">
+                <Link2 size={14} /> RELATIONSHIP TYPES
+              </div>
+              <div className="landing-schema-table">
+                <div className="landing-schema-row landing-schema-header">
+                  <span>Type</span><span>Pattern</span><span>Key Properties</span>
+                </div>
+                {[
+                  { type: "TRANSFER", pattern: "(Wallet)→(Wallet)", props: "txid · amount · value_lossless · timestamp · coin_type", color: "text-red-400" },
+                  { type: "USES", pattern: "(Wallet)→(Coin)", props: "(none — structural edge only)", color: "text-zinc-500" },
+                ].map((r) => (
+                  <div key={r.type} className="landing-schema-row">
+                    <span className={`font-mono font-bold ${r.color}`}>{r.type}</span>
+                    <span className="font-mono text-zinc-400 text-[10px]">{r.pattern}</span>
+                    <span className="text-zinc-500 text-[10px]">{r.props}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Constraints & Indexes */}
+            <div className="landing-schema-card">
+              <div className="landing-schema-card-header text-amber-400">
+                <Hash size={14} /> CONSTRAINTS &amp; INDEXES
+              </div>
+              <div className="landing-schema-table">
+                <div className="landing-schema-row landing-schema-header">
+                  <span>Name</span><span>Target</span><span>Type</span>
+                </div>
+                {[
+                  { name: "wallet_address", target: "Wallet.address", type: "UNIQUE", color: "text-cyan-400" },
+                  { name: "coin_name", target: "Coin.name", type: "UNIQUE", color: "text-amber-400" },
+                  { name: "user_username", target: "User.username", type: "UNIQUE", color: "text-purple-400" },
+                  { name: "user_email", target: "User.email", type: "UNIQUE", color: "text-purple-400" },
+                  { name: "transfer_timestamp", target: "TRANSFER.timestamp", type: "INDEX", color: "text-zinc-400" },
+                  { name: "transfer_txid", target: "TRANSFER.txid", type: "INDEX", color: "text-zinc-400" },
+                ].map((c) => (
+                  <div key={c.name} className="landing-schema-row">
+                    <span className={`font-mono text-[10px] ${c.color}`}>{c.name}</span>
+                    <span className="font-mono text-zinc-500 text-[10px]">{c.target}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.type === "UNIQUE" ? "bg-green-400/10 text-green-400" : "bg-blue-400/10 text-blue-400"}`}>{c.type}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Ingestion Cypher */}
+            <div className="landing-schema-card landing-schema-cypher-card">
+              <div className="landing-schema-card-header text-cyan-400">
+                <Code2 size={14} /> INGESTION CYPHER — idempotent batch of 1 000 transactions
+              </div>
+              <pre className="landing-cypher-block">{`UNWIND $transactions AS tx
+MERGE (from:Wallet {address: tx.wallet_from})
+MERGE (to:Wallet   {address: tx.wallet_to})
+MERGE (c:Coin      {name: tx.coin_type})
+MERGE (from)-[:USES]->(c)
+MERGE (to)-[:USES]->(c)
+MERGE (from)-[t:TRANSFER {txid: tx.transaction_id}]->(to)
+ON CREATE SET
+  t.amount         = toFloat(tx.amount),
+  t.value_lossless = tx.value_lossless,
+  t.timestamp      = tx.timestamp,
+  t.coin_type      = tx.coin_type
+RETURN count(*) AS created`}</pre>
+              <p className="text-[10px] text-zinc-600 font-mono mt-2">
+                MERGE on txid guarantees idempotency — re-uploading the same CSV creates no duplicate nodes or edges.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ DETECTION ALGORITHMS ════════════════════ */}
+      <section id="detection" className="landing-section landing-section-alt">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <ShieldAlert size={12} /> DETECTION ENGINE
+            </span>
+            <h2 className="landing-section-title">Five Fraud Detection Algorithms</h2>
+            <p className="landing-section-sub">
+              Cypher graph-pattern queries executed against Neo4j that surface laundering, mixing hubs, and relay chains from raw topology.
+            </p>
+          </div>
+          <div className="landing-detect-grid">
+            {[
+              {
+                type: "CIRCULAR", icon: GitBranch, color: "text-red-400", bg: "bg-red-400/10",
+                title: "Circular Transfers",
+                desc: "Funds cycling back to the origin wallet through 2–6 hop chains. A hallmark of the layering phase — money routed through intermediaries to obscure the trail.",
+                query: `MATCH path = (w:Wallet)-[:TRANSFER*2..6]->(w)
+WITH w, path, length(path) AS depth
+ORDER BY depth ASC
+LIMIT $limit
+RETURN w.address, depth,
+  [n IN nodes(path) | n.address] AS cycle`,
+                params: ["depth: 2–6 hops", "ordered: shortest first"],
+              },
+              {
+                type: "FAN-OUT", icon: Network, color: "text-amber-400", bg: "bg-amber-400/10",
+                title: "High Fan-Out",
+                desc: "Wallets sending to an unusually large number of distinct recipients. Consistent with distribution hubs, peel-chains, tumblers, or automated fund scattering.",
+                query: `MATCH (w:Wallet)-[t:TRANSFER]->()
+WITH w, count(t) AS outDegree,
+     sum(t.amount) AS totalSent
+WHERE outDegree >= $threshold
+RETURN w.address, outDegree, totalSent
+ORDER BY outDegree DESC`,
+                params: ["threshold: 5 (default)", "sorted: highest first"],
+              },
+              {
+                type: "FAN-IN", icon: Activity, color: "text-orange-400", bg: "bg-orange-400/10",
+                title: "High Fan-In",
+                desc: "Wallets receiving from many senders. Identifies collection addresses in phishing campaigns, ransomware sink wallets, or Ponzi scheme deposit targets.",
+                query: `MATCH ()-[t:TRANSFER]->(w:Wallet)
+WITH w, count(t) AS inDegree,
+     sum(t.amount) AS totalReceived
+WHERE inDegree >= $threshold
+RETURN w.address, inDegree,
+       totalReceived
+ORDER BY inDegree DESC`,
+                params: ["threshold: 5 (default)", "mirror of fan-out"],
+              },
+              {
+                type: "RAPID", icon: Clock, color: "text-cyan-400", bg: "bg-cyan-400/10",
+                title: "Rapid Transfers",
+                desc: "A→B→C chains where B forwards funds within a short time window. Characteristic of automated laundering pipelines, mule chains, and pass-through wallets.",
+                query: `MATCH (a:Wallet)-[t1:TRANSFER]->(b:Wallet)
+      -[t2:TRANSFER]->(c:Wallet)
+WHERE a <> c
+  AND t2.timestamp - t1.timestamp >= 0
+  AND t2.timestamp - t1.timestamp
+        <= $windowSeconds
+RETURN a.address AS from,
+       b.address AS via,
+       c.address AS to`,
+                params: ["window: 60 s (default)", "excludes ping-pong (a ≠ c)"],
+              },
+              {
+                type: "DENSE CLUSTER", icon: Cpu, color: "text-purple-400", bg: "bg-purple-400/10",
+                title: "Dense Clusters",
+                desc: "Wallets with high in-degree AND high out-degree simultaneously. Central nodes in tight transaction clusters — potential mixers or coordinating accounts.",
+                query: `MATCH (w:Wallet)
+OPTIONAL MATCH (w)-[out:TRANSFER]->()
+WITH w, count(out) AS outDeg
+OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
+WITH w, outDeg, count(inr) AS inDeg
+WHERE outDeg >= $threshold
+  AND inDeg  >= $threshold
+RETURN w.address, outDeg, inDeg,
+       outDeg + inDeg AS totalDeg`,
+                params: ["threshold: 3 (both dirs)", "sorted: total degree desc"],
+              },
+            ].map((algo) => (
+              <div key={algo.type} className="landing-detect-card">
+                <div className="landing-detect-header">
+                  <span className={`landing-detect-badge ${algo.bg} ${algo.color}`}>
+                    <algo.icon size={10} /> {algo.type}
+                  </span>
+                </div>
+                <h3 className={`text-sm font-bold mb-1.5 ${algo.color}`}>{algo.title}</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">{algo.desc}</p>
+                <pre className="landing-detect-query">{algo.query}</pre>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {algo.params.map((p) => (
+                    <span key={p} className="landing-detect-param">{p}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ RISK SCORE ENGINE ════════════════════ */}
+      <section id="risk" className="landing-section">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <TrendingUp size={12} /> RISK ENGINE
+            </span>
+            <h2 className="landing-section-title">Composite 0 – 100 Risk Score</h2>
+            <p className="landing-section-sub">
+              Computed in a single <code className="text-cyan-400 font-mono text-xs">UNWIND</code> Cypher query for all visible wallets simultaneously — no N+1 round-trips to the database.
+            </p>
+          </div>
+          <div className="landing-risk-layout">
+            {/* Score formula breakdown */}
+            <div className="landing-risk-formula-card">
+              <div className="landing-schema-card-header text-red-500 mb-5">
+                <BarChart3 size={14} /> SCORING FORMULA — Four Structural Factors
+              </div>
+              <div className="space-y-4">
+                {[
+                  { factor: "Fan-Out", formula: "min(25, outDegree × 5)", max: 25, color: "bg-amber-400", pct: "25%", desc: "Outgoing transfer count — distribution hubs score higher" },
+                  { factor: "Fan-In", formula: "min(25, inDegree × 5)", max: 25, color: "bg-orange-400", pct: "25%", desc: "Incoming transfer count — aggregation sinks score higher" },
+                  { factor: "Cycle Involvement", formula: "min(30, cycles × 15)", max: 30, color: "bg-red-400", pct: "30%", desc: "Circular transfer paths length 2–4 — strongest laundering signal" },
+                  { factor: "Total Degree", formula: "min(20, (out+in) × 2)", max: 20, color: "bg-pink-400", pct: "20%", desc: "Overall network centrality — high connectivity is inherently suspicious" },
+                ].map((f) => (
+                  <div key={f.factor} className="landing-risk-factor">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div>
+                        <span className="text-xs font-bold text-zinc-200">{f.factor}</span>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">{f.desc}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] font-mono text-zinc-500">{f.formula}</span>
+                        <div className="text-xs font-bold text-zinc-300 mt-0.5">+{f.max} pts</div>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`h-full ${f.color} rounded-full`} style={{ width: f.pct }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 pt-4 border-t border-zinc-800 flex items-center justify-between">
+                <span className="text-xs text-zinc-500 font-mono">TOTAL — capped at 100</span>
+                <span className="text-sm font-bold text-white">100 pts max</span>
+              </div>
+              <p className="text-[10px] text-zinc-600 font-mono mt-3 leading-relaxed">
+                Cycle involvement is weighted most heavily (30 pts) — circular transfers are the strongest structural indicator of deliberate fund obfuscation.
+              </p>
+            </div>
+
+            {/* Risk level map + bulk scoring */}
+            <div className="landing-risk-levels-card">
+              <div className="landing-schema-card-header text-green-400 mb-4">
+                <AlertTriangle size={14} /> RISK LEVEL MAP
+              </div>
+              <div className="space-y-3 mb-6">
+                {[
+                  { range: "0 – 20", level: "LOW", color: "text-green-400", bg: "bg-green-400/10", bar: "bg-green-400", pct: "20%" },
+                  { range: "21 – 50", level: "MEDIUM", color: "text-yellow-400", bg: "bg-yellow-400/10", bar: "bg-yellow-400", pct: "50%" },
+                  { range: "51 – 100", level: "HIGH", color: "text-red-400", bg: "bg-red-400/10", bar: "bg-red-400", pct: "100%" },
+                ].map((l) => (
+                  <div key={l.level} className={`flex items-center gap-3 p-3 rounded-lg ${l.bg}`}>
+                    <div className={`w-3 h-3 rounded-full ${l.bar} shrink-0`} />
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-sm font-bold ${l.color}`}>{l.level}</span>
+                        <span className="text-xs text-zinc-500 font-mono">{l.range}</span>
+                      </div>
+                      <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
+                        <div className={`h-full ${l.bar} rounded`} style={{ width: l.pct }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-zinc-800 pt-4">
+                <div className="landing-schema-card-header text-cyan-400 mb-3">
+                  <Globe size={14} /> BULK SCORING QUERY
+                </div>
+                <pre className="landing-detect-query">{`UNWIND $addresses AS addr
+MATCH (w:Wallet {address: addr})
+OPTIONAL MATCH (w)-[out:TRANSFER]->()
+WITH w, addr, count(out) AS outDeg
+OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
+WITH w, addr, outDeg,
+     count(inr) AS inDeg
+OPTIONAL MATCH p =
+  (w)-[:TRANSFER*2..4]->(w)
+WITH addr, outDeg, inDeg,
+     count(p) AS cycles
+-- CASE WHEN caps each component
+RETURN addr,
+  CASE WHEN rawScore < 100
+    THEN rawScore ELSE 100
+  END AS score`}</pre>
+                <p className="text-[10px] text-zinc-600 font-mono mt-2 leading-relaxed">
+                  Single round-trip for all wallet scores — efficient even with 200+ nodes in view.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ GRAPH ALGORITHMS ════════════════════ */}
+      <section id="algorithms" className="landing-section landing-section-alt">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <Cpu size={12} /> GRAPH ALGORITHMS
+            </span>
+            <h2 className="landing-section-title">Physics, Community &amp; Volume Mapping</h2>
+            <p className="landing-section-sub">
+              Log-scaled transaction volume drives the Z-axis. Force-directed physics arranges X/Y. Louvain modularity reveals hidden wallet clusters.
+            </p>
+          </div>
+          <div className="landing-algo-grid">
+            {/* Louvain */}
+            <div className="landing-algo-card">
+              <div className="landing-schema-card-header text-pink-400 mb-3">
+                <GitBranch size={14} /> LOUVAIN COMMUNITY DETECTION
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                In-memory modularity-maximizing algorithm on the already-fetched subgraph. No Neo4j GDS plugin required — runs in <code className="text-pink-400 font-mono">services/community.js</code>. Up to 20 local-move iterations, O(E × iterations).
+              </p>
+              <div className="space-y-2">
+                {[
+                  { step: "1", label: "Build adjacency", detail: "Undirected weighted graph from TRANSFER edges — weight = amount (default 1)" },
+                  { step: "2", label: "Initialize communities", detail: "Each node starts in its own community; track per-community total degree" },
+                  { step: "3", label: "Local moves (≤20 iters)", detail: "Move each node to the neighbor community with greatest ΔQ modularity gain" },
+                  { step: "4", label: "Convergence", detail: "Stop when no node moves or 20 iterations reached; renumber communities from 0" },
+                  { step: "5", label: "Golden-angle coloring", detail: "hue = (clusterId × 137.508°) mod 360 — maximizes perceptual separation between IDs" },
+                ].map((s) => (
+                  <div key={s.step} className="flex gap-3 items-start text-[11px]">
+                    <span className="landing-detect-param shrink-0 font-bold">{s.step}</span>
+                    <div>
+                      <span className="text-zinc-300 font-medium">{s.label} — </span>
+                      <span className="text-zinc-600">{s.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3D Force Layout */}
+            <div className="landing-algo-card">
+              <div className="landing-schema-card-header text-red-500 mb-3">
+                <Cpu size={14} /> 3D FORCE LAYOUT (d3-force-3d / Barnes-Hut)
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                Barnes-Hut many-body simulation with four concurrent forces. 100 warmup ticks before first render eliminates the exploding-graph artifact. αDecay=0.02, friction=0.3.
+              </p>
+              <div className="landing-axis-table">
+                <div className="landing-axis-row landing-schema-header">
+                  <span>Force</span><span>Purpose</span><span>Config</span>
+                </div>
+                {[
+                  { force: "charge", purpose: "Many-body repulsion", config: "Default d3 many-body" },
+                  { force: "link", purpose: "Spring between edges", config: "Natural spring length" },
+                  { force: "center", purpose: "Pull toward origin", config: "Keeps graph centered" },
+                  { force: "z (custom)", purpose: "Bias Z by log-volume", config: "strength = α × 0.3" },
+                ].map((f) => (
+                  <div key={f.force} className="landing-axis-row">
+                    <span className="font-mono text-red-500">{f.force}</span>
+                    <span className="text-zinc-400">{f.purpose}</span>
+                    <span className="text-zinc-600">{f.config}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Z-Axis / Log Volume */}
+            <div className="landing-algo-card">
+              <div className="landing-schema-card-header text-cyan-400 mb-3">
+                <TrendingUp size={14} /> LOG-SCALED Z-AXIS — Volume Mapping
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                Raw blockchain volumes span 10+ orders of magnitude. Log-scaling compresses whale wallets while preserving structure. High-volume nodes rise (Z=+150); low-volume nodes sink (Z=−150).
+              </p>
+              <div className="landing-axis-table">
+                <div className="landing-axis-row landing-schema-header">
+                  <span>Step</span><span>Formula</span><span>Output</span>
+                </div>
+                {[
+                  { step: "Aggregate", formula: "Σ value_lossless (adjacent edges)", output: "totalVolume" },
+                  { step: "Log-scale", formula: "log₁₀(totalVolume + 1)", output: "logVolume" },
+                  { step: "Normalize", formula: "(logVol − min) / range", output: "normalizedVol [0,1]" },
+                  { step: "Z position", formula: "normalizedVol × 300 − 150", output: "fz ∈ [−150, +150]" },
+                ].map((r) => (
+                  <div key={r.step} className="landing-axis-row">
+                    <span className="font-mono text-cyan-400">{r.step}</span>
+                    <span className="text-zinc-500 text-[10px] font-mono">{r.formula}</span>
+                    <span className="text-zinc-400 text-[10px]">{r.output}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Node size + color encoding */}
+            <div className="landing-algo-card">
+              <div className="landing-schema-card-header text-amber-400 mb-3">
+                <Globe size={14} /> NODE SIZE &amp; COLOR ENCODING
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mb-4">
+                Visual properties encode data semantics: size = economic importance (√volume), color = risk or community, glow = volume intensity via Three.js AdditiveBlending sprites.
+              </p>
+              <div className="landing-axis-table">
+                <div className="landing-axis-row landing-schema-header">
+                  <span>Property</span><span>Encoding</span><span>Range</span>
+                </div>
+                {[
+                  { prop: "Node size", enc: "3 + √volume / scaleFactor", range: "3 → ~16 units" },
+                  { prop: "Glow alpha", enc: "0.6 + normalizedVol × 0.4", range: "0.6 → 1.0" },
+                  { prop: "Risk color", enc: "hue = 120×(1−score/100)", range: "green → red" },
+                  { prop: "Cluster color", enc: "hue = id × 137.5° mod 360", range: "golden angle" },
+                  { prop: "Edge width", enc: "log₁₀(amount+1) × scale", range: "0.3 → ~4 units" },
+                ].map((r) => (
+                  <div key={r.prop} className="landing-axis-row">
+                    <span className="font-mono text-amber-400 text-[10px]">{r.prop}</span>
+                    <span className="text-zinc-500 text-[10px] font-mono">{r.enc}</span>
+                    <span className="text-zinc-400 text-[10px]">{r.range}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ API REFERENCE ════════════════════ */}
+      <section id="api" className="landing-section">
+        <div className="landing-section-inner">
+          <div className="text-center mb-12">
+            <span className="landing-section-tag">
+              <Code2 size={12} /> API REFERENCE
+            </span>
+            <h2 className="landing-section-title">REST Endpoints</h2>
+            <p className="landing-section-sub">
+              All endpoints require JWT Bearer authentication. Admin-only routes return 403 for regular users.
+            </p>
+          </div>
+          <div className="landing-api-table-wrap">
+            <div className="landing-api-row landing-api-header">
+              <span>Method</span><span>Path</span><span>Auth</span><span>Description</span>
+            </div>
+            {[
+              { method: "POST", path: "/auth/login", auth: "Public", desc: "Issue JWT token — username + password", mc: "text-green-400", ac: "text-zinc-500" },
+              { method: "POST", path: "/auth/register", auth: "Public", desc: "Create a new user account", mc: "text-green-400", ac: "text-zinc-500" },
+              { method: "GET", path: "/graph", auth: "User", desc: "Ego-subgraph with bulk risk scores, Louvain clusters, log-volume enrichment", mc: "text-blue-400", ac: "text-cyan-400" },
+              { method: "GET", path: "/wallet/:address", auth: "User", desc: "Single wallet detail: risk score, transfer history, coin types", mc: "text-blue-400", ac: "text-cyan-400" },
+              { method: "GET", path: "/suspicious", auth: "User", desc: "Run one detector: circular | fanout | fanin | rapid | cluster", mc: "text-blue-400", ac: "text-cyan-400" },
+              { method: "GET", path: "/stats", auth: "User", desc: "Aggregate graph statistics: node count, edge count, top wallets", mc: "text-blue-400", ac: "text-cyan-400" },
+              { method: "POST", path: "/upload-transactions", auth: "Admin", desc: "Ingest CSV/JSON file — auto-detects BigQuery Ethereum or standard format", mc: "text-green-400", ac: "text-red-400" },
+              { method: "GET", path: "/admin/users", auth: "Admin", desc: "List all users with roles, ban status, registration date", mc: "text-blue-400", ac: "text-red-400" },
+              { method: "PATCH", path: "/admin/users/:id", auth: "Admin", desc: "Update user role (admin/user), email, or ban status", mc: "text-amber-400", ac: "text-red-400" },
+              { method: "DELETE", path: "/admin/clear", auth: "Admin", desc: "Wipe all Wallet and TRANSFER data from the graph database", mc: "text-red-400", ac: "text-red-400" },
+            ].map((ep) => (
+              <div key={ep.path} className="landing-api-row">
+                <span className={`font-mono font-bold text-[11px] ${ep.mc}`}>{ep.method}</span>
+                <span className="font-mono text-zinc-300 text-[11px]">{ep.path}</span>
+                <span className={`text-[10px] font-bold ${ep.ac}`}>{ep.auth}</span>
+                <span className="text-zinc-500 text-[11px]">{ep.desc}</span>
               </div>
             ))}
           </div>
@@ -839,7 +1481,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="flex items-center gap-2">
-            <ShieldAlert size={14} className="text-indigo-400" />
+            <ShieldAlert size={14} className="text-red-500" />
             <span className="font-mono text-xs text-zinc-600">
               DBMS v2.0
             </span>
@@ -849,6 +1491,8 @@ export default function LandingPage() {
           </span>
         </div>
       </footer>
+      </>
+      </div>)}
     </div>
   );
 }

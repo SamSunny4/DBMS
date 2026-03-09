@@ -24,7 +24,7 @@
 .cursor-dot {
   width: 5px;
   height: 5px;
-  background: #e4e4e7;
+  background: #f5f5f5;
   border-radius: 50%;
   margin-top: -2.5px;
   margin-left: -2.5px;
@@ -40,7 +40,7 @@
 /* ── Outer ring ── */
 .cursor-ring {
   --ring-size: 22px;
-  --c-ring: #6366f1;
+  --c-ring: #b91c1c;
   width: var(--ring-size);
   height: var(--ring-size);
   border-radius: 50%;
@@ -72,7 +72,7 @@
 .cursor-bracket {
   width: 10px;
   height: 10px;
-  border-color: var(--c-ring, #6366f1);
+  border-color: var(--c-ring, #b91c1c);
   border-style: solid;
   opacity: 0;
   transition:
@@ -121,7 +121,7 @@
   letter-spacing: 0.06em;
   white-space: nowrap;
   background: rgba(5, 8, 22, 0.88);
-  border: 1px solid #6366f1;
+  border: 1px solid #b91c1c;
   border-radius: 4px;
   padding: 1px 7px;
   opacity: 0;
@@ -142,8 +142,8 @@
   --foreground: #e4e4e7;
   --card: #111118;
   --card-border: #1e1e2e;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
+  --accent: #b91c1c;
+  --accent-hover: #dc2626;
   --danger: #ef4444;
   --warning: #f59e0b;
   --success: #10b981;
@@ -250,8 +250,8 @@ body {
 .upload-zone:hover,
 .upload-zone.dragover {
   border-color: var(--accent);
-  background: rgba(99, 102, 241, 0.05);
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+  background: rgba(180, 40, 40, 0.05);
+  box-shadow: 0 0 15px rgba(180, 40, 40, 0.2);
 }
 
 /* Card Glow Effect for Interactivity */
@@ -263,7 +263,7 @@ body {
 .interactive-card:hover {
   transform: translateY(-2px);
   border-color: var(--accent) !important;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3), inset 0 0 10px rgba(99, 102, 241, 0.05);
+  box-shadow: 0 4px 20px rgba(180, 40, 40, 0.3), inset 0 0 10px rgba(180, 40, 40, 0.05);
 }
 
 /* Background Glowing Ball Animation */
@@ -346,6 +346,154 @@ body {
    LANDING PAGE STYLES
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════
+   SHADER INTRO OVERLAY
+   ═══════════════════════════════════════════════════════════════════ */
+.shader-intro-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+/* Force the Three.js canvas inside to fill */
+.shader-intro-overlay canvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+/* Black overlay that fades in over the shader → creates shader-to-black */
+.shader-black-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  z-index: 5;
+  pointer-events: none;
+}
+.shader-intro-overlay.shader-intro-fading {
+  animation: shader-fade-to-gone 1.2s ease-out forwards;
+}
+.shader-intro-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  pointer-events: none;
+}
+.shader-intro-title {
+  font-family: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: clamp(3.5rem, 12vw, 9rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.15);
+  position: relative;
+  user-select: none;
+  line-height: 1;
+  display: flex;
+}
+/* Individual letter spans */
+.shader-letter {
+  display: inline-block;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.shader-intro-sub {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+.shader-intro-sub-hide {
+  opacity: 0;
+}
+.shader-intro-line {
+  display: block;
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+}
+.shader-intro-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+}
+
+/* ── Scroll hint ── */
+.shader-scroll-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  animation: shader-scroll-pulse 2s ease-in-out infinite;
+}
+.shader-scroll-text {
+  font-family: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+}
+.shader-scroll-arrow {
+  width: 1px;
+  height: 24px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.3), transparent);
+  position: relative;
+}
+.shader-scroll-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid rgba(255,255,255,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.3);
+  transform: rotate(45deg);
+}
+
+@keyframes shader-scroll-pulse {
+  0%, 100% { opacity: 0.4; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(6px); }
+}
+
+/* ── Smooth fade: overlay disappears into black then gone ── */
+@keyframes shader-fade-to-gone {
+  0%   { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+
+/* ── Landing page fade-in from black ── */
+.landing-fade-in {
+  opacity: 0;
+  transition: opacity 0.8s ease-in;
+}
+.landing-fade-in.landing-visible {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+
 .landing-root {
   background: #000000;
   color: #e4e4e7;
@@ -387,8 +535,8 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(180, 40, 40, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180, 40, 40, 0.02) 1px, transparent 1px);
   background-size: 60px 60px;
   mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 70%);
 }
@@ -407,7 +555,7 @@ body {
 .landing-nav-scrolled {
   background: rgba(5, 5, 16, 0.92);
   backdrop-filter: blur(16px);
-  border-bottom-color: rgba(99, 102, 241, 0.1);
+  border-bottom-color: rgba(180, 40, 40, 0.1);
 }
 .landing-nav-inner {
   max-width: 1200px;
@@ -503,17 +651,17 @@ body {
   background: transparent;
 }
 .landing-hero-content {
-  max-width: 800px;
-  padding: 6rem 1.5rem 4rem;
+  max-width: 760px;
+  padding: 7rem 1.5rem 5rem;
   text-align: center;
 }
 .landing-hero-title {
-  font-size: clamp(2rem, 5.5vw, 3.75rem);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.25rem, 5.5vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   color: #fff;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 .landing-hero-accent {
   background: linear-gradient(90deg,
@@ -536,10 +684,10 @@ body {
   100% { background-position-x: 250%; }
 }
 .landing-hero-sub {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: #71717a;
-  line-height: 1.7;
-  max-width: 600px;
+  line-height: 1.75;
+  max-width: 540px;
   margin: 0 auto;
 }
 
@@ -589,7 +737,7 @@ body {
 .landing-glitch::after {
   animation: landing-glitch-2 3s infinite linear;
   clip-path: inset(80% 0 0 0);
-  color: #818cf8;
+  color: #dc2626;
   opacity: 0.08;
 }
 @keyframes landing-glitch-1 {
@@ -614,10 +762,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
-  margin-top: 3rem;
+  gap: 2.5rem;
+  margin-top: 3.5rem;
   padding-top: 2rem;
-  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  border-top: 1px solid rgba(180, 40, 40, 0.1);
 }
 .landing-hero-stat {
   display: flex;
@@ -641,22 +789,22 @@ body {
 .landing-hero-stat-divider {
   width: 1px;
   height: 2rem;
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(180, 40, 40, 0.15);
 }
 
 /* ── Section ── */
 .landing-section {
   position: relative;
-  padding: 5rem 1.5rem;
+  padding: 6rem 1.5rem;
   z-index: 1;
 }
 .landing-section-alt {
   background: rgba(0, 0, 0, 0.65);
-  border-top: 1px solid rgba(99, 102, 241, 0.06);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.06);
+  border-top: 1px solid rgba(180, 40, 40, 0.06);
+  border-bottom: 1px solid rgba(180, 40, 40, 0.06);
 }
 .landing-section-inner {
-  max-width: 1100px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 .landing-section-tag {
@@ -665,19 +813,19 @@ body {
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
-  font-size: 0.625rem;
+  font-size: 0.6rem;
   font-weight: 700;
   font-family: var(--font-mono, monospace);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: #818cf8;
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  background: rgba(99, 102, 241, 0.05);
+  letter-spacing: 0.18em;
+  color: #dc2626;
+  border: 1px solid rgba(180, 40, 40, 0.2);
+  background: rgba(180, 40, 40, 0.05);
   margin-bottom: 1rem;
 }
 .landing-section-title {
   font-size: clamp(1.5rem, 3vw, 2.25rem);
-  font-weight: 800;
+  font-weight: 700;
   color: #fff;
   letter-spacing: -0.02em;
   margin-bottom: 0.75rem;
@@ -685,9 +833,9 @@ body {
 .landing-section-sub {
   font-size: 0.875rem;
   color: #52525b;
-  max-width: 560px;
+  max-width: 520px;
   margin: 0 auto;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 /* ── Demo grid ── */
@@ -710,7 +858,7 @@ body {
 
 /* ── Terminal ── */
 .landing-terminal {
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(180, 40, 40, 0.12);
   border-radius: 0.75rem;
   background: rgba(8, 8, 16, 0.9);
   overflow: hidden;
@@ -722,7 +870,7 @@ body {
   justify-content: space-between;
   padding: 0.625rem 1rem;
   background: rgba(20, 20, 35, 0.8);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid rgba(180, 40, 40, 0.08);
 }
 .landing-terminal-body {
   padding: 1rem 1.25rem;
@@ -732,7 +880,7 @@ body {
   gap: 0.375rem;
 }
 .landing-cursor {
-  color: #818cf8;
+  color: #dc2626;
   animation: landing-blink-cursor 0.8s steps(1) infinite;
 }
 @keyframes landing-blink-cursor {
@@ -745,7 +893,7 @@ body {
 
 /* ── Log feed ── */
 .landing-log-feed {
-  border: 1px solid rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(180, 40, 40, 0.1);
   border-radius: 0.75rem;
   background: rgba(8, 8, 16, 0.9);
   overflow: hidden;
@@ -756,7 +904,7 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: rgba(20, 20, 35, 0.8);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(180, 40, 40, 0.08);
   font-size: 0.5625rem;
   font-weight: 700;
   font-family: var(--font-mono, monospace);
@@ -794,7 +942,7 @@ body {
 
 /* ── Mini panel ── */
 .landing-mini-panel {
-  border: 1px solid rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(180, 40, 40, 0.1);
   border-radius: 0.75rem;
   background: rgba(8, 8, 16, 0.9);
   overflow: hidden;
@@ -805,7 +953,7 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: rgba(20, 20, 35, 0.8);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(180, 40, 40, 0.08);
   font-size: 0.5625rem;
   font-weight: 700;
   font-family: var(--font-mono, monospace);
@@ -843,13 +991,13 @@ body {
   position: relative;
   padding: 1.5rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(180, 40, 40, 0.08);
   background: rgba(10, 10, 20, 0.6);
   transition: all 0.3s ease;
   overflow: hidden;
 }
 .landing-feature-card:hover {
-  border-color: rgba(99, 102, 241, 0.25);
+  border-color: rgba(180, 40, 40, 0.25);
   transform: translateY(-3px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
@@ -860,8 +1008,8 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: rgba(180, 40, 40, 0.08);
+  border: 1px solid rgba(180, 40, 40, 0.12);
 }
 .landing-feature-glow {
   position: absolute;
@@ -877,7 +1025,7 @@ body {
 .landing-feature-card:hover .landing-feature-glow {
   opacity: 0.1;
 }
-.landing-feature-glow.text-indigo-400 { background: #6366f1; }
+.landing-feature-glow.text-indigo-400 { background: #b91c1c; }
 .landing-feature-glow.text-red-400 { background: #ef4444; }
 .landing-feature-glow.text-amber-400 { background: #f59e0b; }
 .landing-feature-glow.text-cyan-400 { background: #06b6d4; }
@@ -900,13 +1048,13 @@ body {
   position: relative;
   text-align: center;
   padding: 1.5rem 1rem;
-  border: 1px solid rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(180, 40, 40, 0.08);
   border-radius: 0.75rem;
   background: rgba(8, 8, 16, 0.6);
   transition: border-color 0.3s;
 }
 .landing-pipeline-step:hover {
-  border-color: rgba(99, 102, 241, 0.25);
+  border-color: rgba(180, 40, 40, 0.25);
 }
 .landing-pipeline-num {
   position: absolute;
@@ -915,7 +1063,7 @@ body {
   font-size: 0.625rem;
   font-family: var(--font-mono, monospace);
   font-weight: 800;
-  color: rgba(99, 102, 241, 0.2);
+  color: rgba(180, 40, 40, 0.2);
   letter-spacing: 0.1em;
 }
 
@@ -930,7 +1078,7 @@ body {
   max-width: 700px;
   margin: 0 auto;
   padding: 3rem 2rem;
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(180, 40, 40, 0.12);
   border-radius: 1rem;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
@@ -939,7 +1087,7 @@ body {
   position: absolute;
   inset: -60px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.08), transparent 70%);
+  background: radial-gradient(circle, rgba(180, 40, 40, 0.08), transparent 70%);
   pointer-events: none;
 }
 
@@ -948,14 +1096,14 @@ body {
   margin-top: 2rem;
 }
 .landing-demo-video-chrome {
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(180, 40, 40, 0.2);
   border-radius: 0.875rem;
   overflow: hidden;
   background: #08080f;
   box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.05),
+    0 0 0 1px rgba(180, 40, 40, 0.05),
     0 8px 40px rgba(0, 0, 0, 0.6),
-    0 0 80px rgba(99, 102, 241, 0.06);
+    0 0 80px rgba(180, 40, 40, 0.06);
 }
 .landing-demo-video-chrome-header {
   display: flex;
@@ -963,7 +1111,7 @@ body {
   gap: 0.75rem;
   padding: 0.625rem 1rem;
   background: rgba(16, 16, 28, 0.95);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid rgba(180, 40, 40, 0.1);
 }
 .landing-demo-video-title {
   flex: 1;
@@ -1014,7 +1162,7 @@ body {
 
 
 .landing-footer {
-  border-top: 1px solid rgba(99, 102, 241, 0.06);
+  border-top: 1px solid rgba(180, 40, 40, 0.06);
   padding: 1.5rem;
 }
 .landing-footer-inner {
@@ -1023,4 +1171,263 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Tech Stack grid
+═══════════════════════════════════════════════════════════════════════ */
+.landing-tech-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .landing-tech-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.landing-tech-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.1rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+.landing-tech-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+.landing-tech-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, 'Fira Code', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Database Schema
+═══════════════════════════════════════════════════════════════════════ */
+.landing-schema-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .landing-schema-layout { grid-template-columns: repeat(2, 1fr); }
+}
+.landing-schema-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.landing-schema-cypher-card {
+  grid-column: 1 / -1;
+}
+.landing-schema-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: ui-monospace, 'Fira Code', monospace;
+  margin-bottom: 0.75rem;
+}
+.landing-schema-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.landing-schema-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 0.75rem;
+  font-size: 11px;
+  align-items: start;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.landing-schema-header {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.landing-cypher-block {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(180, 40, 40, 0.2);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  font-family: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #a5b4fc;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  line-height: 1.75;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Detection Algorithms
+═══════════════════════════════════════════════════════════════════════ */
+.landing-detect-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 640px) {
+  .landing-detect-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .landing-detect-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.landing-detect-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: border-color 0.2s;
+}
+.landing-detect-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.landing-detect-header {
+  margin-bottom: 0.75rem;
+}
+.landing-detect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, 'Fira Code', monospace;
+}
+.landing-detect-query {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-family: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  line-height: 1.65;
+}
+.landing-detect-param {
+  font-size: 9px;
+  font-family: ui-monospace, 'Fira Code', monospace;
+  color: #52525b;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Risk Score Engine
+═══════════════════════════════════════════════════════════════════════ */
+.landing-risk-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .landing-risk-layout { grid-template-columns: 3fr 2fr; }
+}
+.landing-risk-formula-card,
+.landing-risk-levels-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+.landing-risk-factor {
+  padding: 0.4rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Graph Algorithms
+═══════════════════════════════════════════════════════════════════════ */
+.landing-algo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .landing-algo-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.landing-algo-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+.landing-axis-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.landing-axis-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 1fr;
+  gap: 0.75rem;
+  font-size: 11px;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  align-items: start;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   API Reference table
+═══════════════════════════════════════════════════════════════════════ */
+.landing-api-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.landing-api-row {
+  display: grid;
+  grid-template-columns: 60px 200px 60px 1fr;
+  gap: 1rem;
+  padding: 0.65rem 1.25rem;
+  align-items: start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+}
+.landing-api-row:last-child {
+  border-bottom: none;
+}
+.landing-api-header {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: ui-monospace, 'Fira Code', monospace;
+}
+.landing-api-row:not(.landing-api-header):hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+@media (max-width: 640px) {
+  .landing-api-row {
+    grid-template-columns: 55px 1fr 55px;
+    grid-template-rows: auto auto;
+  }
+  .landing-api-row > span:last-child {
+    grid-column: 1 / -1;
+    padding-top: 0.25rem;
+  }
 }
