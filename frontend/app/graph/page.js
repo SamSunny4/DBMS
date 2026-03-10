@@ -79,6 +79,7 @@ function GraphExplorerPage() {
     glowIntensity: 1.0,
     particleCount: 4,
     orbitSpeed: 0.0008,
+    gravity: 0.015,
   });
 
   // URL-derived focus node (camera flies to this address on load)
@@ -448,9 +449,23 @@ function GraphExplorerPage() {
                     />
                   </div>
 
+                  {/* Gravity */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-muted">Gravity</label>
+                      <span className="text-[10px] font-mono text-muted">{(vizSettings.gravity ?? 0.015).toFixed(3)}</span>
+                    </div>
+                    <input
+                      type="range" min="0" max="0.08" step="0.001"
+                      value={vizSettings.gravity ?? 0.015}
+                      onChange={(e) => setVizSettings(prev => ({ ...prev, gravity: parseFloat(e.target.value) }))}
+                      className="mt-0.5 h-1 w-full cursor-pointer accent-accent"
+                    />
+                  </div>
+
                   {/* Reset button */}
                   <button
-                    onClick={() => setVizSettings({ fogDensity: 0.0015, particleSpeed: 0.003, glowIntensity: 1.0, particleCount: 4, orbitSpeed: 0.0008 })}
+                    onClick={() => setVizSettings({ fogDensity: 0.0015, particleSpeed: 0.003, glowIntensity: 1.0, particleCount: 4, orbitSpeed: 0.0008, gravity: 0.015 })}
                     className="mt-1 w-full rounded border border-card-border bg-background px-2 py-1 text-[10px] font-medium text-muted hover:text-foreground transition-colors"
                   >
                     Reset Defaults

@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Color utilities
 // ═══════════════════════════════════════════════════════════════════════
 
-/** Risk gradient: 0 → green, 50 → yellow, 100 → red. */
+/** Improved risk gradient: 0 → teal/green, 50 → yellow, 100 → red. */
 function riskColor(score) {
   const s = Math.max(0, Math.min(100, score || 0));
-  const hue = Math.round(120 - s * 1.2);
+  const hue = Math.round(120 - s * 1.2); // 120 → 0 → −20 (clamped)
   return `hsl(${Math.max(0, hue)}, 85%, 60%)`;
 }
 
-/** Golden-angle cluster color for max perceptual separation. */
+/** Golden-angle cluster color. */
 function clusterColor(clusterId) {
   const hue = (clusterId * 137.508) % 360;
   return `hsl(${Math.round(hue)}, 70%, 55%)`;
@@ -21,15 +21,15 @@ function clusterColor(clusterId) {
 
 /** Fraud pattern → distinct color. */
 const FRAUD_COLORS = {
-  fanout: "hsl(30, 95%, 60%)",
-  fanin: "hsl(280, 80%, 60%)",
-  circular: "hsl(0, 90%, 55%)",
-  hub: "hsl(200, 90%, 65%)",
-  mixer: "hsl(320, 80%, 60%)",
-  normal: null,
+  fanout: "hsl(30, 95%, 60%)",    // orange
+  fanin: "hsl(280, 80%, 60%)",    // purple
+  circular: "hsl(0, 90%, 55%)",   // red
+  hub: "hsl(200, 90%, 65%)",      // cyan
+  mixer: "hsl(320, 80%, 60%)",    // magenta
+  normal: null, // fallback to risk/cluster color
 };
 
-/** Parse `hsl(h, s%, l%)` → { r, g, b } 0-255. */
+/** Parse an `hsl(h, s%, l%)` string into { r, g, b } 0-255. */
 function parseColor(str) {
   const m = str.match(/hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)/);
   if (m) return hslToRgb(parseFloat(m[1]) / 360, parseFloat(m[2]) / 100, parseFloat(m[3]) / 100);
@@ -70,12 +70,14 @@ function createGlowTexture(color, intensity = 1, size = 128) {
   const { r, g, b } = parseColor(color);
   const cx = size / 2;
   const rad = size / 2;
-  const a = Math.min(1, 0.5 + intensity * 0.5);
+
   const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, rad);
+  const a = Math.min(1, 0.5 + intensity * 0.5);
   grad.addColorStop(0, `rgba(${r},${g},${b},${a})`);
   grad.addColorStop(0.2, `rgba(${r},${g},${b},${a * 0.75})`);
   grad.addColorStop(0.5, `rgba(${r},${g},${b},${a * 0.25})`);
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   return canvas;
@@ -89,6 +91,7 @@ function createStarfield(T, count = 3000, radius = 2000) {
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
   for (let i = 0; i < count; i++) {
+    // Uniform sphere distribution
     const u = Math.random() * 2 - 1;
     const theta = Math.random() * Math.PI * 2;
     const r = radius * (0.3 + Math.random() * 0.7);
@@ -101,6 +104,7 @@ function createStarfield(T, count = 3000, radius = 2000) {
   const geo = new T.BufferGeometry();
   geo.setAttribute("position", new T.BufferAttribute(positions, 3));
   geo.setAttribute("size", new T.BufferAttribute(sizes, 1));
+
   const mat = new T.PointsMaterial({
     color: 0xaabbff,
     size: 1.2,
@@ -116,33 +120,48 @@ function createStarfield(T, count = 3000, radius = 2000) {
 // Fraud-pattern layout positions
 // ═══════════════════════════════════════════════════════════════════════
 
-function computeFraudLayout(nodes) {
+function computeFraudLayout(nodes, links) {
+  // Group nodes by fraud pattern
   const groups = { fanout: [], fanin: [], circular: [], hub: [], mixer: [], normal: [] };
   for (const n of nodes) groups[n.fraudPattern]?.push(n) ?? groups.normal.push(n);
 
-  const positions = new Map();
+  // Assign positions by pattern type
+  const positions = new Map(); // id → { fx, fy, fzOverride }
   const SPREAD = 200;
 
+  // Fan-out → radial star (center + ring)
   layoutStar(groups.fanout, -SPREAD * 1.5, 0, 0, positions);
+
+  // Fan-in → inverted star
   layoutStar(groups.fanin, SPREAD * 1.5, 0, 0, positions);
+
+  // Circular → ring layout
   layoutRing(groups.circular, 0, SPREAD * 1.5, 0, positions);
+
+  // Hubs → large central positions
   layoutCluster(groups.hub, 0, 0, SPREAD * 0.5, positions);
+
+  // Mixers → tight cluster
   layoutCluster(groups.mixer, 0, -SPREAD * 1.5, 0, positions);
+
+  // Normal → force-directed (no fixed pos)
+  // (leave them out of positions map)
 
   return positions;
 }
 
 function layoutStar(nodeList, cx, cy, cz, posMap) {
   if (nodeList.length === 0) return;
+  // Sort by volume descending — biggest is center
   const sorted = [...nodeList].sort((a, b) => b.totalVolume - a.totalVolume);
-  posMap.set(sorted[0].id, { fx: cx, fy: cy, fz: cz });
+  posMap.set(sorted[0].id, { fx: cx, fy: cy, fzOverride: cz });
   const R = 50 + sorted.length * 3;
   for (let i = 1; i < sorted.length; i++) {
     const angle = ((i - 1) / (sorted.length - 1)) * Math.PI * 2;
     posMap.set(sorted[i].id, {
       fx: cx + R * Math.cos(angle),
       fy: cy + R * Math.sin(angle),
-      fz: cz + (Math.random() - 0.5) * 30,
+      fzOverride: cz + (Math.random() - 0.5) * 30,
     });
   }
 }
@@ -155,7 +174,7 @@ function layoutRing(nodeList, cx, cy, cz, posMap) {
     posMap.set(nodeList[i].id, {
       fx: cx + R * Math.cos(angle),
       fy: cy + R * Math.sin(angle),
-      fz: cz,
+      fzOverride: cz,
     });
   }
 }
@@ -168,7 +187,7 @@ function layoutCluster(nodeList, cx, cy, cz, posMap) {
     posMap.set(nodeList[i].id, {
       fx: cx + r * Math.cos(angle),
       fy: cy + r * Math.sin(angle),
-      fz: cz + (Math.random() - 0.5) * 40,
+      fzOverride: cz + (Math.random() - 0.5) * 40,
     });
   }
 }
@@ -183,9 +202,9 @@ export default function GraphViewer3D({
   highlightedNodes = [],
   highlightPath = [],
   volumeThreshold = 0,
-  colorMode = "risk",
+  colorMode = "risk",          // "risk" | "cluster"
   animateTime = false,
-  layoutMode = "force",
+  layoutMode = "force",        // "force" | "fraud"
   reduceAnimations = false,
   vizSettings = {},
   focusNodeId = null,
@@ -196,15 +215,16 @@ export default function GraphViewer3D({
   const animFrameRef = useRef(null);
   const orbitRef = useRef(null);
   const wasdFrameRef = useRef(null);
-  const sceneExtrasRef = useRef([]);
+  const sceneExtrasRef = useRef([]); // track added scene objects for cleanup
   const keysRef = useRef(new Set());
-  const cameraStateRef = useRef(null);
-  const userInteractedRef = useRef(false);
-  const settingsRef = useRef(null);
-  const hoveredNodeRef = useRef(null);
-  const onNodeClickRef = useRef(onNodeClick);
+  const cameraStateRef = useRef(null); // preserve camera across graph recreation
+  const userInteractedRef = useRef(false); // persists across graph recreation — prevents orbit restart
+  const settingsRef = useRef(null); // always-current settings for RAF closures
+  const hoveredNodeRef = useRef(null); // tracks hovered node for middle-click
+  const onNodeClickRef = useRef(onNodeClick); // ref so the graph init effect doesn't re-run on callback identity changes
   const [ForceGraph3DModule, setForceGraph3DModule] = useState(null);
 
+  // Keep onNodeClickRef current on every render
   onNodeClickRef.current = onNodeClick;
 
   // ── Merged visual settings with defaults ──
@@ -214,17 +234,16 @@ export default function GraphViewer3D({
     glowIntensity: vizSettings.glowIntensity ?? 1.0,
     particleCount: vizSettings.particleCount ?? 4,
     orbitSpeed: vizSettings.orbitSpeed ?? 0.0008,
-    gravity: vizSettings.gravity ?? 0.015,
   }), [
     vizSettings.fogDensity,
     vizSettings.particleSpeed,
     vizSettings.glowIntensity,
     vizSettings.particleCount,
     vizSettings.orbitSpeed,
-    vizSettings.gravity,
   ]);
 
-  // Dynamic import of 3d-force-graph + three
+  // Import both 3d-force-graph and three together so window.__THREE__ is
+  // guaranteed to be set before the graph (and nodeThreeObject) are ever created.
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -239,11 +258,10 @@ export default function GraphViewer3D({
     return () => { cancelled = true; };
   }, []);
 
+  // Keep settingsRef current so RAF callbacks always read latest values
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Data transformation: backend Cytoscape format → 3d-force-graph format
-  // ═══════════════════════════════════════════════════════════════════
+  // ── Data transformation ──────────────────────────────────────────
   const graphData = useMemo(() => {
     if (!elements) return { nodes: [], links: [] };
 
@@ -251,7 +269,7 @@ export default function GraphViewer3D({
     const nodes = [];
     const links = [];
 
-    // Compute scale factors from data extremes
+    // ── Node size scale factor ──
     let maxVol = 0;
     for (const n of elements.nodes || []) {
       const v = parseFloat(n.data?.totalVolume ?? n.data?.value_lossless ?? 0);
@@ -259,6 +277,7 @@ export default function GraphViewer3D({
     }
     const scaleFactor = maxVol > 0 ? Math.sqrt(maxVol) / 13 : 1;
 
+    // ── Edge width scale ──
     let maxLogAmt = 0;
     for (const e of elements.edges || []) {
       const la = parseFloat(e.data?.logAmount ?? 0);
@@ -274,6 +293,7 @@ export default function GraphViewer3D({
       const clusterId = n.data?.clusterId ?? -1;
       const fraudPattern = n.data?.fraudPattern || "normal";
 
+      // Threshold filter
       if (volumeThreshold > 0 && normVol < volumeThreshold) continue;
 
       const isHighlighted =
@@ -281,7 +301,7 @@ export default function GraphViewer3D({
       const isOnPath =
         highlightPath.includes(n.data.id) || highlightPath.includes(n.data.label);
 
-      // Color priority: path > highlighted > cluster > fraud > risk
+      // ── Color ──
       let color;
       if (isOnPath) {
         color = "hsl(45, 100%, 60%)";
@@ -295,11 +315,10 @@ export default function GraphViewer3D({
         color = riskColor(risk);
       }
 
-      // Node size: sqrt-scaled so largest ~ 16, smallest = 3
       const nodeSize = 3 + Math.sqrt(totalVol) / scaleFactor;
 
-      // Z target from normalizedVolume: -150 (low volume) to +150 (high volume)
-      const fzTarget = normVol * 300 - 150;
+      // Z-axis encodes log-scaled volume: low-volume sinks, high-volume rises
+      const targetZ = normVol * 300 - 150; // range: -150 to +150
 
       const node = {
         id: n.data.id,
@@ -314,7 +333,8 @@ export default function GraphViewer3D({
         color,
         isHighlighted,
         isOnPath,
-        fzTarget,
+        // Let force-directed layout compute X/Y from topology; Z biased by volume
+        fzTarget: targetZ,
         nodeSize,
         glowIntensity: normVol,
       };
@@ -351,15 +371,13 @@ export default function GraphViewer3D({
     return { nodes, links };
   }, [elements, highlightedNodes, highlightPath, volumeThreshold, colorMode]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // 3D Graph init & update
-  // ═══════════════════════════════════════════════════════════════════
+  // ── 3D Graph init & update ─────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || !ForceGraph3DModule) return;
 
     const container = containerRef.current;
 
-    // Save camera before destroying previous instance
+    // ── Save camera position before destroying ──
     if (graphRef.current) {
       try {
         const pos = graphRef.current.cameraPosition();
@@ -369,44 +387,55 @@ export default function GraphViewer3D({
       graphRef.current = null;
       while (container.firstChild) container.removeChild(container.firstChild);
     }
-    if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
-    if (orbitRef.current) { cancelAnimationFrame(orbitRef.current); orbitRef.current = null; }
-    if (wasdFrameRef.current) { cancelAnimationFrame(wasdFrameRef.current); wasdFrameRef.current = null; }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (orbitRef.current) {
+      cancelAnimationFrame(orbitRef.current);
+      orbitRef.current = null;
+    }
+    if (wasdFrameRef.current) {
+      cancelAnimationFrame(wasdFrameRef.current);
+      wasdFrameRef.current = null;
+    }
     sceneExtrasRef.current = [];
 
-    // ── Fraud layout mode: fix positions ──
+    // ── Fraud pattern layout (pre-assign positions) ──
+    let fraudPositions = null;
     if (layoutMode === "fraud") {
-      const fraudPositions = computeFraudLayout(graphData.nodes);
+      fraudPositions = computeFraudLayout(graphData.nodes, graphData.links);
       for (const node of graphData.nodes) {
         const pos = fraudPositions.get(node.id);
-        if (pos) { node.fx = pos.fx; node.fy = pos.fy; node.fz = pos.fz; }
+        if (pos) {
+          node.fx = pos.fx;
+          node.fy = pos.fy;
+          node.fz = pos.fzOverride;
+        }
       }
     } else {
+      // Clear any pinned positions from previous fraud layout
       for (const node of graphData.nodes) {
-        delete node.fx; delete node.fy; delete node.fz;
-        // Seed near centre with a tiny random jitter so nodes don't
-        // all start at exactly (0,0,0) and scatter unpredictably.
-        node.x = (Math.random() - 0.5) * 30;
-        node.y = (Math.random() - 0.5) * 30;
-        node.z = (Math.random() - 0.5) * 30;
+        delete node.fx;
+        delete node.fy;
+        delete node.fz;
       }
     }
 
+    // ── Capture settings in closure ──
     const _reduceAnim = reduceAnimations;
+    // Use a cancellation token so orphaned setTimeouts from old effect runs don't fire
     const effectCleanup = { cancelled: false };
 
-    // ───────────────────────────────────────────────────────────────
-    // Instantiate 3d-force-graph
-    // ───────────────────────────────────────────────────────────────
     const Graph = ForceGraph3DModule()(container)
       .backgroundColor("#050816")
       .showNavInfo(false)
 
-      // Curved edges
+      // ── Curved edges ──
       .linkCurvature(0.25)
       .linkCurveRotation(0)
 
-      // ── Custom node rendering: sphere + glow sprite ──
+      // ── Nodes ──
       .nodeThreeObject((node) => {
         const T = window.__THREE__;
         if (!T) return undefined;
@@ -415,6 +444,7 @@ export default function GraphViewer3D({
         const { r, g, b } = parseColor(node.color);
         const col = new T.Color(r / 255, g / 255, b / 255);
 
+        // Core sphere — MeshStandardMaterial with emissive
         const geo = new T.SphereGeometry(s * 0.5, 32, 32);
         const mat = new T.MeshStandardMaterial({
           color: col,
@@ -427,6 +457,7 @@ export default function GraphViewer3D({
         });
         const sphere = new T.Mesh(geo, mat);
 
+        // Glow sprite — skip if animations are reduced or intensity is 0
         if (!_reduceAnim && settingsRef.current.glowIntensity > 0) {
           const glowScale = 1 + node.normalizedVolume * 3 * settingsRef.current.glowIntensity;
           const canvas = createGlowTexture(
@@ -448,21 +479,23 @@ export default function GraphViewer3D({
           group.add(sprite);
           return group;
         }
+
         return sphere;
       })
-
-      // ── Node tooltip ──
       .nodeLabel((node) => {
-        const addr = node.label?.length > 20
-          ? node.label.slice(0, 10) + "\u2026" + node.label.slice(-6)
-          : node.label;
-        const vol = node.totalVolume > 1e15
-          ? (node.totalVolume / 1e18).toFixed(4) + " ETH"
-          : node.totalVolume.toLocaleString() + " Wei";
+        const addr =
+          node.label?.length > 20
+            ? node.label.slice(0, 10) + "\u2026" + node.label.slice(-6)
+            : node.label;
+        const vol =
+          node.totalVolume > 1e15
+            ? (node.totalVolume / 1e18).toFixed(4) + " ETH"
+            : node.totalVolume.toLocaleString() + " Wei";
         const riskHue = Math.max(0, Math.round(120 - (node.riskScore || 0) * 1.2));
-        const patternBadge = node.fraudPattern !== "normal"
-          ? `<div style="margin-top:2px;color:${FRAUD_COLORS[node.fraudPattern] || "#fff"};font-weight:700;">\u26a0 ${node.fraudPattern.toUpperCase()}</div>`
-          : "";
+        const patternBadge =
+          node.fraudPattern !== "normal"
+            ? `<div style="margin-top:2px;color:${FRAUD_COLORS[node.fraudPattern] || "#fff"};font-weight:700;">\u26a0 ${node.fraudPattern.toUpperCase()}</div>`
+            : "";
         return `<div style="background:rgba(5,8,22,0.92);color:#e4e4e7;padding:8px 12px;border-radius:8px;font-size:12px;font-family:monospace;border:1px solid #27272a;pointer-events:none;max-width:300px;">
           <div style="font-weight:700;margin-bottom:4px;">${addr}</div>
           <div style="color:#a1a1aa;">Volume: <span style="color:${node.color}">${vol}</span></div>
@@ -472,37 +505,35 @@ export default function GraphViewer3D({
           ${patternBadge}
         </div>`;
       })
-
-      // ── Link tooltip ──
       .linkLabel((link) => {
-        const src = typeof link.source === "object" ? (link.source.label || link.source.id) : link.source;
-        const tgt = typeof link.target === "object" ? (link.target.label || link.target.id) : link.target;
-        const shortSrc = src?.length > 16 ? src.slice(0, 8) + "\u2026" + src.slice(-6) : src;
-        const shortTgt = tgt?.length > 16 ? tgt.slice(0, 8) + "\u2026" + tgt.slice(-6) : tgt;
+        const src = typeof link.source === 'object' ? (link.source.label || link.source.id) : link.source;
+        const tgt = typeof link.target === 'object' ? (link.target.label || link.target.id) : link.target;
+        const shortSrc = src?.length > 16 ? src.slice(0, 8) + '\u2026' + src.slice(-6) : src;
+        const shortTgt = tgt?.length > 16 ? tgt.slice(0, 8) + '\u2026' + tgt.slice(-6) : tgt;
         const amt = link.amount != null
-          ? `${Number(link.amount).toLocaleString()} ${link.coin_type || ""}`.trim()
-          : "\u2014";
+          ? `${Number(link.amount).toLocaleString()} ${link.coin_type || ''}`.trim()
+          : '—';
         const ts = link.timestamp
-          ? new Date(link.timestamp).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+          ? new Date(link.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
           : null;
         const txShort = link.txid?.length > 20
-          ? link.txid.slice(0, 10) + "\u2026" + link.txid.slice(-6)
+          ? link.txid.slice(0, 10) + '\u2026' + link.txid.slice(-6)
           : link.txid;
         const pathBadge = link.isPathEdge
           ? `<div style="margin-top:4px;color:#f59e0b;font-weight:700;">&#9654; Path edge</div>`
-          : "";
+          : '';
         return `<div style="background:rgba(5,8,22,0.92);color:#e4e4e7;padding:8px 12px;border-radius:8px;font-size:12px;font-family:monospace;border:1px solid #27272a;pointer-events:none;max-width:320px;">
           <div style="font-weight:700;margin-bottom:4px;color:#818cf8;">&#8594; Transfer</div>
           <div style="color:#a1a1aa;">From: <span style="color:#e4e4e7">${shortSrc}</span></div>
           <div style="color:#a1a1aa;">To: &nbsp;&nbsp;<span style="color:#e4e4e7">${shortTgt}</span></div>
           <div style="color:#a1a1aa;margin-top:4px;">Amount: <span style="color:#34d399">${amt}</span></div>
-          ${ts ? `<div style="color:#a1a1aa;">Date: <span style="color:#e4e4e7">${ts}</span></div>` : ""}
-          ${txShort ? `<div style="color:#a1a1aa;">TxID: <span style="color:#71717a">${txShort}</span></div>` : ""}
+          ${ts ? `<div style="color:#a1a1aa;">Date: <span style="color:#e4e4e7">${ts}</span></div>` : ''}
+          ${txShort ? `<div style="color:#a1a1aa;">TxID: <span style="color:#71717a">${txShort}</span></div>` : ''}
           ${pathBadge}
         </div>`;
       })
 
-      // ── Edge visuals ──
+      // ── Edges — animated directional particles ──
       .linkColor((link) => link.color)
       .linkWidth((link) => link.width)
       .linkOpacity(0.55)
@@ -513,11 +544,11 @@ export default function GraphViewer3D({
         link.isPathEdge ? "#f59e0b" : "rgba(140, 160, 210, 0.5)"
       )
 
-      // ── Physics engine parameters ──
-      .d3AlphaDecay(0.015)
-      .d3VelocityDecay(0.3)
-      .warmupTicks(120)
-      .cooldownTicks(300)
+      // ── Physics ──
+      .d3AlphaDecay(0.02)
+      .d3VelocityDecay(0.35)
+      .warmupTicks(180)
+      .cooldownTicks(120)
 
       // ── Interaction ──
       .onNodeClick((node) => {
@@ -531,7 +562,7 @@ export default function GraphViewer3D({
           new CustomEvent("graph-node-hover", { detail: { node: node || null } })
         );
       })
-      .enableNodeDrag(false);
+      .enableNodeDrag(false); // drag only when Ctrl is held
 
     // Middle-click: open wallet in new tab
     const handleAuxClick = (e) => {
@@ -544,67 +575,86 @@ export default function GraphViewer3D({
     };
     container.addEventListener("auxclick", handleAuxClick);
 
-    // ───────────────────────────────────────────────────────────────
-    // PHYSICS FORCES
-    //
-    // Only three forces are active:
-    //   1. charge   — many-body repulsion so nodes push apart
-    //   2. link     — spring keeps connected nodes together
-    //   3. collision — prevents visual overlap
-    //
-    // No barriers, no gravity wells, no cluster or z-axis bias.
-    // Nodes start near the origin and settle naturally.
-    // ───────────────────────────────────────────────────────────────
+    // ── Improved physics forces ──
+    Graph.d3Force("charge").strength(-120);
+    Graph.d3Force("link").distance(60).strength(0.4);
 
-    // 1. Charge: repulsion only — nodes push each other away
-    const nodeCount = graphData.nodes.length;
-    const chargeStrength = nodeCount > 100 ? -80 : nodeCount > 30 ? -120 : -180;
-    Graph.d3Force("charge").strength(chargeStrength).distanceMax(400);
+    // Collision force — prevent node overlap
+    import("d3-force-3d").then((d3) => {
+      if (!graphRef.current) return;
+      Graph.d3Force(
+        "collision",
+        d3.forceCollide((node) => (node.nodeSize || 5) * 1.2)
+      );
+    }).catch(() => {});
 
-    // 2. Link: spring force — connected nodes stay close
-    const linkDist = nodeCount > 100 ? 40 : nodeCount > 30 ? 55 : 70;
-    Graph.d3Force("link").distance(linkDist).strength(0.5);
+    // Mild cluster gravity — pull nodes towards cluster centroid
+    Graph.d3Force("cluster", (alpha) => {
+      const centroids = new Map();
+      const counts = new Map();
+      for (const n of graphData.nodes) {
+        if (n.clusterId < 0) continue;
+        if (!centroids.has(n.clusterId)) {
+          centroids.set(n.clusterId, { x: 0, y: 0, z: 0 });
+          counts.set(n.clusterId, 0);
+        }
+        const c = centroids.get(n.clusterId);
+        c.x += n.x || 0;
+        c.y += n.y || 0;
+        c.z += n.z || 0;
+        counts.set(n.clusterId, counts.get(n.clusterId) + 1);
+      }
+      for (const [cid, c] of centroids) {
+        const cnt = counts.get(cid);
+        c.x /= cnt;
+        c.y /= cnt;
+        c.z /= cnt;
+      }
+      const strength = alpha * 0.03;
+      for (const n of graphData.nodes) {
+        if (n.clusterId < 0 || n.fx !== undefined) continue;
+        const c = centroids.get(n.clusterId);
+        if (!c) continue;
+        n.vx = (n.vx || 0) + (c.x - (n.x || 0)) * strength;
+        n.vy = (n.vy || 0) + (c.y - (n.y || 0)) * strength;
+        n.vz = (n.vz || 0) + (c.z - (n.z || 0)) * strength;
+      }
+    });
 
-    // Remove all other default forces that might bias positions
-    Graph.d3Force("center", null);
-    Graph.d3Force("x", null);
-    Graph.d3Force("y", null);
-    Graph.d3Force("z", null);
-    Graph.d3Force("cluster", null);
-    Graph.d3Force("bounds", null);
+    // ── Custom Z-force: bias Z toward log-scaled normalized volume ──
+    // Low-volume wallets sink (Z ≈ −150), high-volume wallets rise (Z ≈ +150)
+    Graph.d3Force("z", (alpha) => {
+      for (const node of graphData.nodes) {
+        if (node.fx !== undefined) continue;
+        if (node.fzTarget !== undefined) {
+          node.vz = (node.vz || 0) + (node.fzTarget - (node.z || 0)) * alpha * 0.3;
+        }
+      }
+    });
 
-    // 3. Weak inward gravity: pulls all nodes toward the origin so the
-    //    graph stays compact and doesn't drift off into empty space.
-    //    The sqrt falloff makes it essentially zero at the centre and
-    //    stronger only when a node wanders far away.
-    Graph.d3Force("gravity", (alpha) => {
-      const strength = alpha * (settingsRef.current?.gravity ?? 0.015);
+    // ── Containment sphere — only push nodes inward when they exceed the boundary ──
+    // Nodes are free to occupy ANY position inside the sphere (filled volume, not shell)
+    const SPHERE_R = 300;
+    Graph.d3Force("bounds", () => {
       for (const node of graphData.nodes) {
         if (node.fx !== undefined) continue;
         const nx = node.x || 0;
         const ny = node.y || 0;
         const nz = node.z || 0;
-        const dist = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-        const pull = strength * Math.sqrt(dist);
-        node.vx = (node.vx || 0) - (nx / dist) * pull;
-        node.vy = (node.vy || 0) - (ny / dist) * pull;
-        node.vz = (node.vz || 0) - (nz / dist) * pull;
+        const dist = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (dist > SPHERE_R) {
+          // Only push inward — never push outward
+          const scale = SPHERE_R / dist;
+          node.vx = (node.vx || 0) + (nx * scale - nx) * 0.1;
+          node.vy = (node.vy || 0) + (ny * scale - ny) * 0.1;
+          node.vz = (node.vz || 0) + (nz * scale - nz) * 0.1;
+        }
       }
     });
 
-    // 4. Collision: prevent node overlap
-    import("d3-force-3d").then((d3) => {
-      if (!graphRef.current || effectCleanup.cancelled) return;
-      Graph.d3Force(
-        "collision",
-        d3.forceCollide((node) => (node.nodeSize || 5) * 1.0)
-      );
-    }).catch(() => {});
-
-    // Feed data to graph
     Graph.graphData(graphData);
 
-    // ── Fly camera to focusNodeId after layout settles ──
+    // ── Fly camera to focusNodeId when simulation settles ──
     if (focusNodeId) {
       Graph.onEngineStop(() => {
         if (!graphRef.current || userInteractedRef.current) return;
@@ -621,30 +671,38 @@ export default function GraphViewer3D({
       });
     }
 
-    // ── Scene enhancements: lighting, fog, starfield ──
+    // ── Scene enhancements (lighting, fog, starfield) ──
     setTimeout(() => {
-      if (effectCleanup.cancelled) return;
       const scene = Graph.scene?.();
       const T = window.__THREE__;
       if (!scene || !T) return;
 
+      // Ambient light
       const ambient = new T.AmbientLight(0xffffff, 0.6);
       scene.add(ambient);
       sceneExtrasRef.current.push(ambient);
 
+      // Point light at camera-ish position
       const pointLight = new T.PointLight(0xffffff, 1, 0);
       pointLight.position.set(200, 200, 400);
       scene.add(pointLight);
       sceneExtrasRef.current.push(pointLight);
 
+      // Secondary accent light
       const accentLight = new T.PointLight(0x6366f1, 0.4, 0);
       accentLight.position.set(-300, -100, -200);
       scene.add(accentLight);
       sceneExtrasRef.current.push(accentLight);
 
+      // Depth fog — disabled when reduceAnimations or fogDensity is 0
       const fogDensity = _reduceAnim ? 0 : settingsRef.current.fogDensity;
-      scene.fog = fogDensity > 0 ? new T.FogExp2(0x050816, fogDensity) : null;
+      if (fogDensity > 0) {
+        scene.fog = new T.FogExp2(0x050816, fogDensity);
+      } else {
+        scene.fog = null;
+      }
 
+      // Starfield background
       const stars = createStarfield(T, 4000, 2000);
       scene.add(stars);
       sceneExtrasRef.current.push(stars);
@@ -652,13 +710,12 @@ export default function GraphViewer3D({
 
     // ── Restore or set initial camera position ──
     setTimeout(() => {
-      if (effectCleanup.cancelled) return;
       if (cameraStateRef.current) {
         const saved = cameraStateRef.current;
         Graph.cameraPosition(
           { x: saved.x, y: saved.y, z: saved.z },
           { x: 0, y: 0, z: 0 },
-          0
+          0 // instant — no animation
         );
       } else {
         Graph.cameraPosition({ x: 0, y: 0, z: 500 }, { x: 0, y: 0, z: 0 }, 1000);
@@ -667,7 +724,7 @@ export default function GraphViewer3D({
 
     graphRef.current = Graph;
 
-    // ── Camera auto-orbit ──
+    // ── Camera auto-orbit (disabled when reduceAnimations) ──
     let orbitAngle = 0;
     const onInteract = () => { userInteractedRef.current = true; };
     container.addEventListener("pointerdown", onInteract);
@@ -681,17 +738,14 @@ export default function GraphViewer3D({
           const r = 500;
           try {
             graphRef.current.cameraPosition(
-              {
-                x: r * Math.sin(orbitAngle),
-                y: 50 * Math.sin(orbitAngle * 0.5),
-                z: r * Math.cos(orbitAngle),
-              },
+              { x: r * Math.sin(orbitAngle), y: 50 * Math.sin(orbitAngle * 0.5), z: r * Math.cos(orbitAngle) },
               { x: 0, y: 0, z: 0 }
             );
           } catch (_) { return; }
         }
         orbitRef.current = requestAnimationFrame(orbitTick);
       };
+      // Start orbit after layout settles
       setTimeout(() => {
         if (!effectCleanup.cancelled) {
           orbitRef.current = requestAnimationFrame(orbitTick);
@@ -721,6 +775,7 @@ export default function GraphViewer3D({
 
     const onKeyDown = (e) => {
       const key = e.key.toLowerCase();
+      // Skip when typing in inputs
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       if (["w", "a", "s", "d", "q", "e", " ", "shift"].includes(key)) {
         keysRef.current.add(key);
@@ -741,25 +796,32 @@ export default function GraphViewer3D({
       }
       const keys = keysRef.current;
       if (keys.size > 0) {
-        userInteractedRef.current = true;
+        userInteractedRef.current = true; // Stop orbit
+
         const camera = graphRef.current.camera?.();
         const T = window.__THREE__;
         if (camera && T) {
           const speed = keys.has("shift") ? MOVE_SPEED * SHIFT_MULTIPLIER : MOVE_SPEED;
+
           const forward = new T.Vector3();
           camera.getWorldDirection(forward);
           const right = new T.Vector3();
           right.crossVectors(forward, camera.up).normalize();
           const up = new T.Vector3(0, 1, 0);
+
           const pos = graphRef.current.cameraPosition();
           let dx = 0, dy = 0, dz = 0;
+
           if (keys.has("w")) { dx += forward.x * speed; dy += forward.y * speed; dz += forward.z * speed; }
           if (keys.has("s")) { dx -= forward.x * speed; dy -= forward.y * speed; dz -= forward.z * speed; }
           if (keys.has("a")) { dx -= right.x * speed; dy -= right.y * speed; dz -= right.z * speed; }
           if (keys.has("d")) { dx += right.x * speed; dy += right.y * speed; dz += right.z * speed; }
           if (keys.has("q") || keys.has(" ")) { dx += up.x * speed; dy += up.y * speed; dz += up.z * speed; }
           if (keys.has("e")) { dx -= up.x * speed; dy -= up.y * speed; dz -= up.z * speed; }
-          graphRef.current.cameraPosition({ x: pos.x + dx, y: pos.y + dy, z: pos.z + dz });
+
+          graphRef.current.cameraPosition(
+            { x: pos.x + dx, y: pos.y + dy, z: pos.z + dz }
+          );
         }
       }
       wasdFrameRef.current = requestAnimationFrame(wasdTick);
@@ -772,7 +834,6 @@ export default function GraphViewer3D({
       const DURATION = 8000;
       const start = performance.now();
       const tick = () => {
-        if (effectCleanup.cancelled) return;
         const elapsed = performance.now() - start;
         const t = Math.min(1, elapsed / DURATION);
         const cutoff = sorted.findIndex((l) => l.normalizedTime > t);
@@ -783,7 +844,7 @@ export default function GraphViewer3D({
       animFrameRef.current = requestAnimationFrame(tick);
     }
 
-    // Resize observer
+    // Resize
     const resizeObs = new ResizeObserver(() => {
       if (graphRef.current) {
         graphRef.current.width(container.clientWidth);
@@ -792,17 +853,13 @@ export default function GraphViewer3D({
     });
     resizeObs.observe(container);
 
-    // Capture ref for cleanup
-    const keysSet = keysRef.current;
-
-    // ── Cleanup ──
     return () => {
       effectCleanup.cancelled = true;
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("keydown", onCtrlDown);
       window.removeEventListener("keyup", onCtrlUp);
-      keysSet.clear();
+      keysRef.current.clear();
       container.removeEventListener("pointerdown", onInteract);
       container.removeEventListener("wheel", onInteract);
       container.removeEventListener("auxclick", handleAuxClick);
@@ -810,6 +867,7 @@ export default function GraphViewer3D({
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (orbitRef.current) cancelAnimationFrame(orbitRef.current);
       if (wasdFrameRef.current) cancelAnimationFrame(wasdFrameRef.current);
+      // Clean up scene extras
       const scene = graphRef.current?.scene?.();
       if (scene) {
         for (const obj of sceneExtrasRef.current) scene.remove(obj);
@@ -821,8 +879,7 @@ export default function GraphViewer3D({
     };
   }, [ForceGraph3DModule, graphData, animateTime, layoutMode, reduceAnimations, focusNodeId]);
 
-  // ── Live settings updates (no full recreation) ──
-  const prevGravityRef = useRef(null);
+  // ── Live settings updates — update the existing graph without full recreation ──
   useEffect(() => {
     const G = graphRef.current;
     if (!G) return;
@@ -834,17 +891,11 @@ export default function GraphViewer3D({
       const fogDensity = reduceAnimations ? 0 : settings.fogDensity;
       scene.fog = fogDensity > 0 ? new T.FogExp2(0x050816, fogDensity) : null;
     }
-    // Reheat the simulation when gravity changes so the force has ticks to run
-    if (prevGravityRef.current !== null && prevGravityRef.current !== settings.gravity) {
-      try { G.d3ReheatSimulation(); } catch (_) {}
-    }
-    prevGravityRef.current = settings.gravity;
   }, [settings, reduceAnimations]);
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Legend & controls UI
-  // ═══════════════════════════════════════════════════════════════════
-  const riskGradient = "linear-gradient(to right, hsl(120,85%,60%), hsl(60,85%,60%), hsl(0,85%,60%))";
+  // ── Legend ──
+  const riskGradient =
+    "linear-gradient(to right, hsl(120,85%,60%), hsl(60,85%,60%), hsl(0,85%,60%))";
   const clusterCount = new Set(graphData.nodes.map((n) => n.clusterId)).size;
   const fraudCounts = {};
   for (const n of graphData.nodes) {
@@ -881,13 +932,18 @@ export default function GraphViewer3D({
             </div>
             <div className="flex flex-wrap gap-1">
               {Array.from({ length: Math.min(clusterCount, 6) }, (_, i) => (
-                <span key={i} className="inline-block h-2 w-2 rounded-full" style={{ background: clusterColor(i) }} />
+                <span
+                  key={i}
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: clusterColor(i) }}
+                />
               ))}
               {clusterCount > 6 && <span className="text-[9px] text-muted">+{clusterCount - 6}</span>}
             </div>
           </>
         )}
 
+        {/* Fraud patterns detected */}
         {Object.keys(fraudCounts).length > 0 && (
           <div className="mt-1.5 border-t border-card-border pt-1.5">
             <div className="mb-0.5 text-[10px] font-semibold text-muted uppercase tracking-wider">
@@ -895,8 +951,13 @@ export default function GraphViewer3D({
             </div>
             {Object.entries(fraudCounts).map(([pat, cnt]) => (
               <div key={pat} className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full" style={{ background: FRAUD_COLORS[pat] || "#888" }} />
-                <span className="text-[9px] text-muted">{pat} ({cnt})</span>
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: FRAUD_COLORS[pat] || "#888" }}
+                />
+                <span className="text-[9px] text-muted">
+                  {pat} ({cnt})
+                </span>
               </div>
             ))}
           </div>
