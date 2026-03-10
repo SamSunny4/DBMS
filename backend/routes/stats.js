@@ -5,13 +5,13 @@ export default async function statsRoutes(fastify) {
     const session = getSession();
     try {
       const result = await session.run(`
-        OPTIONAL MATCH (w:Wallet)
+        OPTIONAL MATCH (w:Wallet {dataset_id: 'shared'})
         WITH count(w) AS walletCount
-        OPTIONAL MATCH ()-[t:TRANSFER]->()
+        OPTIONAL MATCH ()-[t:TRANSFER {dataset_id: 'shared'}]->()
         WITH walletCount, count(t) AS transactionCount
         OPTIONAL MATCH (c:Coin)
         WITH walletCount, transactionCount, count(c) AS coinCount
-        OPTIONAL MATCH (sw:Wallet)-[:TRANSFER*2..4]->(sw)
+        OPTIONAL MATCH (sw:Wallet {dataset_id: 'shared'})-[:TRANSFER*2..4]->(sw)
         WITH walletCount, transactionCount, coinCount, count(DISTINCT sw) AS suspiciousCount
         RETURN walletCount, transactionCount, coinCount, suspiciousCount
       `);

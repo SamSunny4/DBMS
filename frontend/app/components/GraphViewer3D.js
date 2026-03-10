@@ -317,8 +317,8 @@ export default function GraphViewer3D({
 
       const nodeSize = 3 + Math.sqrt(totalVol) / scaleFactor;
 
-      // Seed initial position on a sphere surface so the simulation starts 3D
-      const seedR = 150 + Math.random() * 150;
+      // Seed nodes directly on the sphere surface so the shell force has minimal work to do
+      const seedR = 275 + Math.random() * 30;
       const seedTheta = Math.random() * Math.PI * 2;
       const seedPhi = Math.acos(2 * Math.random() - 1);
 
@@ -366,7 +366,7 @@ export default function GraphViewer3D({
         txid: e.data.txid || e.data.id,
         label: e.data.label,
         normalizedTime: parseFloat(e.data?.normalizedTime ?? 0),
-        color: isPathEdge ? "rgba(245, 158, 11, 0.8)" : "rgba(100, 120, 160, 0.35)",
+        color: isPathEdge ? "rgba(245, 158, 11, 0.9)" : "rgba(100, 130, 210, 0.4)",
         width: isPathEdge ? 3 : Math.max(0.3, logAmt * edgeWidthScale),
         isPathEdge,
       });
@@ -449,12 +449,12 @@ export default function GraphViewer3D({
         const col = new T.Color(r / 255, g / 255, b / 255);
 
         // Core sphere — MeshStandardMaterial with emissive
-        const geo = new T.SphereGeometry(s * 0.5, 24, 24);
+        const geo = new T.SphereGeometry(s * 0.5, 32, 32);
         const mat = new T.MeshStandardMaterial({
           color: col,
           emissive: col,
-          emissiveIntensity: 0.5,
-          roughness: 0.4,
+          emissiveIntensity: 0.75,
+          roughness: 0.3,
           metalness: 0.2,
           transparent: true,
           opacity: 0.92,
@@ -550,9 +550,9 @@ export default function GraphViewer3D({
 
       // ── Physics ──
       .d3AlphaDecay(0.02)
-      .d3VelocityDecay(0.3)
-      .warmupTicks(100)
-      .cooldownTicks(200)
+      .d3VelocityDecay(0.35)
+      .warmupTicks(180)
+      .cooldownTicks(120)
 
       // ── Interaction ──
       .onNodeClick((node) => {
@@ -580,8 +580,8 @@ export default function GraphViewer3D({
     container.addEventListener("auxclick", handleAuxClick);
 
     // ── Improved physics forces ──
-    Graph.d3Force("charge").strength(-220);
-    Graph.d3Force("link").distance(120).strength(0.25);
+    Graph.d3Force("charge").strength(-160);
+    Graph.d3Force("link").distance(75).strength(0.3);
 
     // Collision force — prevent node overlap
     import("d3-force-3d").then((d3) => {
@@ -617,7 +617,7 @@ export default function GraphViewer3D({
         c.y /= cnt;
         c.z /= cnt;
       }
-      const strength = alpha * 0.05;
+      const strength = alpha * 0.025;
       for (const n of graphData.nodes) {
         if (n.clusterId < 0 || n.fx !== undefined) continue;
         const c = centroids.get(n.clusterId);
@@ -628,9 +628,11 @@ export default function GraphViewer3D({
       }
     });
 
-    // ── Spherical bounds — softly keep nodes within a sphere of radius SPHERE_R ──
-    const SPHERE_R = 350;
-    const SPHERE_PUSH = 0.08;
+    // ── Radial shell — bidirectional force that attracts nodes to the sphere surface ──
+    // Nodes outside the sphere are pushed in; nodes inside are pushed out.
+    // This creates a tight, symmetric shell rather than a filled blob.
+    const SPHERE_R = 300;
+    const SHELL_STRENGTH = 0.14;
     Graph.d3Force("bounds", () => {
       for (const node of graphData.nodes) {
         if (node.fx !== undefined) continue;
@@ -638,12 +640,12 @@ export default function GraphViewer3D({
         const ny = node.y || 0;
         const nz = node.z || 0;
         const dist = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (dist > SPHERE_R && dist > 0) {
-          const over = (dist - SPHERE_R) / dist;
-          node.vx = (node.vx || 0) - nx * over * SPHERE_PUSH;
-          node.vy = (node.vy || 0) - ny * over * SPHERE_PUSH;
-          node.vz = (node.vz || 0) - nz * over * SPHERE_PUSH;
-        }
+        if (dist === 0) continue;
+        // offset > 0: node is outside (push inward); offset < 0: node is inside (push outward)
+        const offset = (dist - SPHERE_R) / dist;
+        node.vx = (node.vx || 0) - nx * offset * SHELL_STRENGTH;
+        node.vy = (node.vy || 0) - ny * offset * SHELL_STRENGTH;
+        node.vz = (node.vz || 0) - nz * offset * SHELL_STRENGTH;
       }
     });
 

@@ -1,11 +1,11 @@
 import { getSession } from '../neo4j/driver.js';
 
 // --- Circular Transfers ---
-export async function detectCircularTransfers(limit = 20) {
+export async function detectCircularTransfers(limit = 20, datasetId = 'shared') {
   const session = getSession();
   try {
     const result = await session.run(
-      `MATCH path = (w:Wallet)-[:TRANSFER*2..6]->(w)
+      `MATCH path = (w:Wallet {dataset_id: $datasetId})-[:TRANSFER*2..6]->(w)
        WITH w, path, length(path) AS depth
        ORDER BY depth ASC
        LIMIT toInteger($limit)
@@ -13,7 +13,7 @@ export async function detectCircularTransfers(limit = 20) {
               depth,
               [n IN nodes(path) | n.address] AS cycle,
               [r IN relationships(path) | {amount: r.amount, coin: r.coin_type, txid: r.txid}] AS transfers`,
-      { limit: parseInt(limit) }
+      { limit: parseInt(limit), datasetId }
     );
 
     return result.records.map((r) => ({
@@ -29,17 +29,17 @@ export async function detectCircularTransfers(limit = 20) {
 }
 
 // --- High Fan-Out ---
-export async function detectHighFanOut(threshold = 5, limit = 20) {
+export async function detectHighFanOut(threshold = 5, limit = 20, datasetId = 'shared') {
   const session = getSession();
   try {
     const result = await session.run(
-      `MATCH (w:Wallet)-[t:TRANSFER]->()
+      `MATCH (w:Wallet {dataset_id: $datasetId})-[t:TRANSFER]->()
        WITH w, count(t) AS outDegree, sum(t.amount) AS totalSent
        WHERE outDegree >= toInteger($threshold)
        RETURN w.address AS address, outDegree, totalSent
        ORDER BY outDegree DESC
        LIMIT toInteger($limit)`,
-      { threshold: parseInt(threshold), limit: parseInt(limit) }
+      { threshold: parseInt(threshold), limit: parseInt(limit), datasetId }
     );
 
     return result.records.map((r) => ({
@@ -54,17 +54,17 @@ export async function detectHighFanOut(threshold = 5, limit = 20) {
 }
 
 // --- High Fan-In ---
-export async function detectHighFanIn(threshold = 5, limit = 20) {
+export async function detectHighFanIn(threshold = 5, limit = 20, datasetId = 'shared') {
   const session = getSession();
   try {
     const result = await session.run(
-      `MATCH ()-[t:TRANSFER]->(w:Wallet)
+      `MATCH ()-[t:TRANSFER]->(w:Wallet {dataset_id: $datasetId})
        WITH w, count(t) AS inDegree, sum(t.amount) AS totalReceived
        WHERE inDegree >= toInteger($threshold)
        RETURN w.address AS address, inDegree, totalReceived
        ORDER BY inDegree DESC
        LIMIT toInteger($limit)`,
-      { threshold: parseInt(threshold), limit: parseInt(limit) }
+      { threshold: parseInt(threshold), limit: parseInt(limit), datasetId }
     );
 
     return result.records.map((r) => ({
@@ -79,11 +79,11 @@ export async function detectHighFanIn(threshold = 5, limit = 20) {
 }
 
 // --- Rapid Transfers ---
-export async function detectRapidTransfers(windowSeconds = 60, limit = 20) {
+export async function detectRapidTransfers(windowSeconds = 60, limit = 20, datasetId = 'shared') {
   const session = getSession();
   try {
     const result = await session.run(
-      `MATCH (a:Wallet)-[t1:TRANSFER]->(b:Wallet)-[t2:TRANSFER]->(c:Wallet)
+      `MATCH (a:Wallet {dataset_id: $datasetId})-[t1:TRANSFER]->(b:Wallet {dataset_id: $datasetId})-[t2:TRANSFER]->(c:Wallet {dataset_id: $datasetId})
        WHERE a <> c
          AND toInteger(t2.timestamp) - toInteger(t1.timestamp) >= 0
          AND toInteger(t2.timestamp) - toInteger(t1.timestamp) <= toInteger($windowSeconds)
@@ -92,7 +92,7 @@ export async function detectRapidTransfers(windowSeconds = 60, limit = 20) {
               t1.timestamp AS ts1, t2.timestamp AS ts2,
               t1.txid AS txid1, t2.txid AS txid2
        LIMIT toInteger($limit)`,
-      { windowSeconds: parseInt(windowSeconds), limit: parseInt(limit) }
+      { windowSeconds: parseInt(windowSeconds), limit: parseInt(limit), datasetId }
     );
 
     return result.records.map((r) => ({
@@ -111,11 +111,11 @@ export async function detectRapidTransfers(windowSeconds = 60, limit = 20) {
 }
 
 // --- Dense Clusters ---
-export async function detectDenseClusters(threshold = 3, limit = 20) {
+export async function detectDenseClusters(threshold = 3, limit = 20, datasetId = 'shared') {
   const session = getSession();
   try {
     const result = await session.run(
-      `MATCH (w:Wallet)
+      `MATCH (w:Wallet {dataset_id: $datasetId})
        OPTIONAL MATCH (w)-[out:TRANSFER]->()
        WITH w, count(out) AS outDeg
        OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
@@ -124,7 +124,7 @@ export async function detectDenseClusters(threshold = 3, limit = 20) {
        RETURN w.address AS address, outDeg, inDeg, (outDeg + inDeg) AS totalDeg
        ORDER BY totalDeg DESC
        LIMIT toInteger($limit)`,
-      { threshold: parseInt(threshold), limit: parseInt(limit) }
+      { threshold: parseInt(threshold), limit: parseInt(limit), datasetId }
     );
 
     return result.records.map((r) => ({
@@ -182,19 +182,19 @@ export async function calculateRiskScore(address) {
 
 // --- Run all detectors ---
 export async function runDetection(type, options = {}) {
-  const { threshold, limit, windowSeconds } = options;
+  const { threshold, limit, windowSeconds, datasetId = 'shared' } = options;
 
   switch (type) {
     case 'circular':
-      return detectCircularTransfers(limit);
+      return detectCircularTransfers(limit, datasetId);
     case 'fanout':
-      return detectHighFanOut(threshold, limit);
+      return detectHighFanOut(threshold, limit, datasetId);
     case 'fanin':
-      return detectHighFanIn(threshold, limit);
+      return detectHighFanIn(threshold, limit, datasetId);
     case 'rapid':
-      return detectRapidTransfers(windowSeconds, limit);
+      return detectRapidTransfers(windowSeconds, limit, datasetId);
     case 'cluster':
-      return detectDenseClusters(threshold, limit);
+      return detectDenseClusters(threshold, limit, datasetId);
     default:
       throw new Error(`Unknown detection type: ${type}`);
   }
@@ -208,13 +208,13 @@ function toNum(val) {
 
 // Compute risk scores for multiple addresses in a single Cypher UNWIND query.
 // Accepts an optional already-open session so the caller controls its lifecycle.
-export async function bulkRiskScores(addresses, existingSession) {
+export async function bulkRiskScores(addresses, existingSession, datasetId = 'shared') {
   const session = existingSession || getSession();
   const owned = !existingSession;
   try {
     const result = await session.run(
       `UNWIND $addresses AS addr
-       MATCH (w:Wallet {address: addr})
+       MATCH (w:Wallet {address: addr, dataset_id: $datasetId})
        OPTIONAL MATCH (w)-[out:TRANSFER]->()
        WITH w, addr, count(out) AS outDeg
        OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
@@ -229,7 +229,7 @@ export async function bulkRiskScores(addresses, existingSession) {
        WITH addr, foScore + fiScore + cycleScore + degScore AS rawScore
        RETURN addr,
               CASE WHEN rawScore < 100 THEN rawScore ELSE 100 END AS score`,
-      { addresses }
+      { addresses, datasetId }
     );
 
     const map = {};

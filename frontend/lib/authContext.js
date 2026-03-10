@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getUserDatasets } from './api.js';
 
 const AuthContext = createContext();
 
@@ -8,6 +9,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDatasetId, setSelectedDatasetId] = useState('shared');
+  const [userDatasets, setUserDatasets] = useState([]);
 
   // Load token from localStorage on mount
   useEffect(() => {
@@ -88,6 +91,26 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const reloadUserDatasets = useCallback(async () => {
+    try {
+      const { datasets } = await getUserDatasets();
+      setUserDatasets(datasets || []);
+    } catch {
+      setUserDatasets([]);
+    }
+  }, []);
+
+  // Load datasets whenever the logged-in user changes
+  useEffect(() => {
+    if (user?.username) {
+      setSelectedDatasetId('shared');
+      reloadUserDatasets();
+    } else {
+      setUserDatasets([]);
+      setSelectedDatasetId('shared');
+    }
+  }, [user?.username, reloadUserDatasets]);
+
   const logout = async () => {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/logout`, {
@@ -148,6 +171,10 @@ export function AuthProvider({ children }) {
     refreshToken,
     isAuthenticated: !!token,
     isAdmin: user?.role === 'admin',
+    selectedDatasetId,
+    setSelectedDatasetId,
+    userDatasets,
+    reloadUserDatasets,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

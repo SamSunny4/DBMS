@@ -146,7 +146,7 @@ export async function getTransactionPath(from, to) {
   return cached(key, () => request(`/transactions/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`), 30 * 1000);
 }
 
-export async function getGraph({ limit = 200, coinType, address, addresses } = {}) {
+export async function getGraph({ limit = 200, coinType, address, addresses, datasetId = 'shared' } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (coinType) params.set('coin_type', coinType);
   if (addresses && addresses.length > 0) {
@@ -154,23 +154,26 @@ export async function getGraph({ limit = 200, coinType, address, addresses } = {
   } else if (address) {
     params.set('address', address);
   }
+  params.set('dataset_id', datasetId || 'shared');
   const qs = params.toString();
   return cached(`graph:${qs}`, () => request(`/graph?${qs}`), TTL_GRAPH);
 }
 
-export async function getSuspicious({ type = 'circular', threshold = 5, limit = 20, windowSeconds = 60 } = {}) {
+export async function getSuspicious({ type = 'circular', threshold = 5, limit = 20, windowSeconds = 60, datasetId = 'shared' } = {}) {
   const params = new URLSearchParams({
     type,
     threshold: String(threshold),
     limit: String(limit),
     window: String(windowSeconds),
+    dataset_id: datasetId || 'shared',
   });
   const qs = params.toString();
   return cached(`suspicious:${qs}`, () => request(`/suspicious?${qs}`), TTL_SUSPICIOUS);
 }
 
-export async function getRiskRanking({ limit = 50 } = {}) {
-  return cached(`risk-ranking:${limit}`, () => request(`/suspicious/risk-ranking?limit=${limit}`), TTL_SUSPICIOUS);
+export async function getRiskRanking({ limit = 50, datasetId = 'shared' } = {}) {
+  const qs = `limit=${limit}&dataset_id=${encodeURIComponent(datasetId || 'shared')}`;
+  return cached(`risk-ranking:${qs}`, () => request(`/suspicious/risk-ranking?${qs}`), TTL_SUSPICIOUS);
 }
 
 export async function getMyPreferences() {
@@ -215,4 +218,28 @@ export async function uploadTransactions(file) {
 
   invalidateAll(); // new data ingested — fresh fetch on next navigation
   return data;
+}
+
+export async function uploadUserData(file, name) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const url = `${API_URL}/user/upload${name ? `?name=${encodeURIComponent(name)}` : ''}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(url, { method: 'POST', body: formData, headers });
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(data.error || `Upload failed: ${res.status}`);
+  return data;
+}
+
+export async function getUserDatasets() {
+  return request('/user/datasets');
+}
+
+export async function deleteUserDataset(id) {
+  return request(`/user/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

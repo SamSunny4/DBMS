@@ -79,6 +79,7 @@ export default async function graphRoutes(fastify) {
     const limit = parseInt(request.query.limit || '200', 10);
     const coinType = request.query.coin_type || null;
     const address = request.query.address || null;
+    const datasetId = request.query.dataset_id || 'shared';
     // Multi-wallet: ?addresses=addr1,addr2,…  (max 10)
     const addressesParam = request.query.addresses || null;
     const addresses = addressesParam
@@ -88,12 +89,12 @@ export default async function graphRoutes(fastify) {
     const session = getSession();
     try {
       let cypher;
-      const params = { limit };
+      const params = { limit, datasetId };
 
       if (addresses && addresses.length > 0) {
         // Multi-wallet ego-subgraph — 1-hop neighborhood for each address
         cypher = `
-          MATCH (center:Wallet)-[t:TRANSFER]-(neighbor:Wallet)
+          MATCH (center:Wallet {dataset_id: $datasetId})-[t:TRANSFER {dataset_id: $datasetId}]-(neighbor:Wallet {dataset_id: $datasetId})
           WHERE center.address IN $addresses
           ${coinType ? 'AND t.coin_type = $coinType' : ''}
           RETURN center, t, neighbor
@@ -104,7 +105,7 @@ export default async function graphRoutes(fastify) {
       } else if (address) {
         // Single ego-centered subgraph (1-hop neighborhood)
         cypher = `
-          MATCH (center:Wallet {address: $address})-[t:TRANSFER]-(neighbor:Wallet)
+          MATCH (center:Wallet {address: $address, dataset_id: $datasetId})-[t:TRANSFER {dataset_id: $datasetId}]-(neighbor:Wallet {dataset_id: $datasetId})
           ${coinType ? 'WHERE t.coin_type = $coinType' : ''}
           RETURN center, t, neighbor
           LIMIT toInteger($limit)
@@ -114,7 +115,7 @@ export default async function graphRoutes(fastify) {
       } else if (coinType) {
         // Filter by coin type
         cypher = `
-          MATCH (a:Wallet)-[t:TRANSFER]->(b:Wallet)
+          MATCH (a:Wallet {dataset_id: $datasetId})-[t:TRANSFER {dataset_id: $datasetId}]->(b:Wallet {dataset_id: $datasetId})
           WHERE t.coin_type = $coinType
           RETURN a, t, b
           LIMIT toInteger($limit)
@@ -123,7 +124,7 @@ export default async function graphRoutes(fastify) {
       } else {
         // General subgraph
         cypher = `
-          MATCH (a:Wallet)-[t:TRANSFER]->(b:Wallet)
+          MATCH (a:Wallet {dataset_id: $datasetId})-[t:TRANSFER {dataset_id: $datasetId}]->(b:Wallet {dataset_id: $datasetId})
           RETURN a, t, b
           LIMIT toInteger($limit)
         `;
@@ -138,7 +139,7 @@ export default async function graphRoutes(fastify) {
         .map((n) => n.data.label);
 
       if (walletAddresses.length > 0) {
-        const scores = await bulkRiskScores(walletAddresses, session);
+        const scores = await bulkRiskScores(walletAddresses, session, datasetId);
         for (const node of elements.nodes) {
           if (node.data.nodeType === 'Wallet') {
             node.data.riskScore = scores[node.data.label] ?? 0;
@@ -227,8 +228,9 @@ export default async function graphRoutes(fastify) {
 
       // ── Total counts ───────────────────────────────────────────────
       const countResult = await session.run(
-        `MATCH (w:Wallet) WITH count(w) AS wc
-         MATCH ()-[t:TRANSFER]->() RETURN wc, count(t) AS tc`
+        `MATCH (w:Wallet {dataset_id: $datasetId}) WITH count(w) AS wc
+         MATCH ()-[t:TRANSFER {dataset_id: $datasetId}]->() RETURN wc, count(t) AS tc`,
+        { datasetId }
       );
 
       const totalWallets = countResult.records[0]?.get('wc');

@@ -11,10 +11,10 @@ export default async function walletRoutes(fastify) {
     try {
       // Get wallet summary
       const summaryResult = await session.run(
-        `MATCH (w:Wallet {address: $address})
-         OPTIONAL MATCH (w)-[out:TRANSFER]->()
+        `MATCH (w:Wallet {address: $address, dataset_id: 'shared'})
+         OPTIONAL MATCH (w)-[out:TRANSFER {dataset_id: 'shared'}]->()
          WITH w, count(out) AS outCount, COALESCE(sum(out.amount), 0) AS totalSent
-         OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
+         OPTIONAL MATCH ()-[inr:TRANSFER {dataset_id: 'shared'}]->(w)
          WITH w, outCount, totalSent, count(inr) AS inCount, COALESCE(sum(inr.amount), 0) AS totalReceived
          OPTIONAL MATCH (w)-[:USES]->(c:Coin)
          RETURN w.address AS address,
@@ -32,7 +32,7 @@ export default async function walletRoutes(fastify) {
 
       // Get paginated transactions
       const txResult = await session.run(
-        `MATCH (w:Wallet {address: $address})-[t:TRANSFER]-(other:Wallet)
+        `MATCH (w:Wallet {address: $address, dataset_id: 'shared'})-[t:TRANSFER {dataset_id: 'shared'}]-(other:Wallet {dataset_id: 'shared'})
          RETURN
            CASE WHEN startNode(t) = w THEN 'sent' ELSE 'received' END AS direction,
            other.address AS counterparty,

@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import logsRoutes from './routes/logs.js';
 import settingsRoutes from './routes/settings.js';
+import datasetRoutes from './routes/datasets.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -40,6 +41,7 @@ await fastify.register(authRoutes);
 await fastify.register(userRoutes);
 await fastify.register(logsRoutes);
 await fastify.register(settingsRoutes);
+await fastify.register(datasetRoutes);
 
 // Graceful shutdown
 fastify.addHook('onClose', async () => {

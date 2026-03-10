@@ -13,10 +13,11 @@ export default async function suspiciousRoutes(fastify) {
   // Risk ranking: all wallets sorted by computed risk score
   fastify.get('/suspicious/risk-ranking', async (request, reply) => {
     const limit = parseInt(request.query.limit || '50', 10);
+    const datasetId = request.query.dataset_id || 'shared';
     const session = getSession();
     try {
       const result = await session.run(
-        `MATCH (w:Wallet)
+        `MATCH (w:Wallet {dataset_id: $datasetId})
          OPTIONAL MATCH (w)-[out:TRANSFER]->()
          WITH w, count(out) AS outDeg
          OPTIONAL MATCH ()-[inr:TRANSFER]->(w)
@@ -32,7 +33,7 @@ export default async function suspiciousRoutes(fastify) {
          RETURN w.address AS address, outDeg, inDeg, cycles, riskScore
          ORDER BY riskScore DESC
          LIMIT toInteger($limit)`,
-        { limit }
+        { limit, datasetId }
       );
       const wallets = result.records.map((r) => ({
         address: r.get('address'),
@@ -52,6 +53,7 @@ export default async function suspiciousRoutes(fastify) {
     const threshold = parseInt(request.query.threshold || '5', 10);
     const limit = parseInt(request.query.limit || '20', 10);
     const windowSeconds = parseInt(request.query.window || '60', 10);
+    const datasetId = request.query.dataset_id || 'shared';
 
     if (!VALID_TYPES.includes(type)) {
       return reply.code(400).send({
@@ -59,7 +61,7 @@ export default async function suspiciousRoutes(fastify) {
       });
     }
 
-    const results = await runDetection(type, { threshold, limit, windowSeconds });
+    const results = await runDetection(type, { threshold, limit, windowSeconds, datasetId });
 
     return {
       type,

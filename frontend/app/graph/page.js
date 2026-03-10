@@ -39,7 +39,7 @@ export default function GraphExplorerPageWrapper() {
 function GraphExplorerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, selectedDatasetId } = useAuth();
   const [elements, setElements] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -127,6 +127,7 @@ function GraphExplorerPage() {
         limit: appliedNodeLimit,
         coinType: appliedCoinFilter || undefined,
         addresses: appliedCenterAddresses.length > 0 ? appliedCenterAddresses : undefined,
+        datasetId: selectedDatasetId,
       });
       setElements(data.elements);
       setGraphInfo(data);
@@ -135,7 +136,7 @@ function GraphExplorerPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedNodeLimit, appliedCoinFilter, appliedCenterAddresses]);
+  }, [appliedNodeLimit, appliedCoinFilter, appliedCenterAddresses, selectedDatasetId]);
 
   useEffect(() => {
     fetchGraph();

@@ -15,6 +15,8 @@ import {
   Users,
   FileText,
   BarChart3,
+  Database,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/authContext";
@@ -38,9 +40,12 @@ const adminNavItems = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout, isAuthenticated, loading, isAdmin } = useAuth();
+  const { user, logout, isAuthenticated, loading, isAdmin, selectedDatasetId, setSelectedDatasetId, userDatasets } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [datasetPickerOpen, setDatasetPickerOpen] = useState(false);
+
+  const showDatasetPicker = pathname?.startsWith('/graph') || pathname?.startsWith('/suspicious');
 
   // Don't show sidebar on login page or during loading
   if (pathname === "/login" || loading) {
@@ -140,6 +145,61 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Dataset picker — only on /graph and /suspicious */}
+        {showDatasetPicker && (
+          <div className="border-t border-sidebar-border px-3 py-3 relative">
+            <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted flex items-center gap-1">
+              <Database size={10} /> Dataset
+            </p>
+            <button
+              onClick={() => setDatasetPickerOpen((o) => !o)}
+              className="flex w-full items-center justify-between gap-1 rounded border border-sidebar-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-accent transition-colors"
+            >
+              <span className="truncate">
+                {selectedDatasetId === 'shared'
+                  ? 'Main Database'
+                  : (userDatasets.find((d) => d.id === selectedDatasetId)?.name || 'My Dataset')}
+              </span>
+              <ChevronDown size={12} className={`flex-shrink-0 text-muted transition-transform ${datasetPickerOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {datasetPickerOpen && (
+              <div className="absolute bottom-full left-3 right-3 z-50 mb-1 rounded-lg border border-card-border bg-card p-1 shadow-xl">
+                <button
+                  onClick={() => { setSelectedDatasetId('shared'); setDatasetPickerOpen(false); }}
+                  className={`w-full rounded px-3 py-2 text-left text-xs font-medium transition-colors ${
+                    selectedDatasetId === 'shared' ? 'bg-accent/20 text-accent' : 'text-foreground hover:bg-background'
+                  }`}
+                >
+                  Main Database
+                  <span className="ml-1 text-[10px] text-muted">(shared)</span>
+                </button>
+                {userDatasets.length > 0 && (
+                  <>
+                    <div className="my-1 border-t border-card-border" />
+                    {userDatasets.map((ds) => (
+                      <button
+                        key={ds.id}
+                        onClick={() => { setSelectedDatasetId(ds.id); setDatasetPickerOpen(false); }}
+                        className={`w-full rounded px-3 py-2 text-left text-xs font-medium transition-colors ${
+                          selectedDatasetId === ds.id ? 'bg-accent/20 text-accent' : 'text-foreground hover:bg-background'
+                        }`}
+                      >
+                        <span className="block truncate">{ds.name}</span>
+                        {ds.rowCount != null && (
+                          <span className="text-[10px] text-muted">{ds.rowCount.toLocaleString()} rows</span>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {userDatasets.length === 0 && (
+                  <p className="px-3 py-2 text-[10px] text-muted">No personal datasets — upload one on the Data Management page.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search or Logout */}
         <div className="border-t border-sidebar-border p-4 space-y-2">

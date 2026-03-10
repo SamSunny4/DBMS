@@ -16,6 +16,7 @@ import {
 import LoadingSpinner from "../components/LoadingSpinner";
 import SearchBar from "../components/SearchBar";
 import { getSuspicious, getRiskRanking } from "@/lib/api";
+import { useAuth } from "@/lib/authContext";
 import { TrendingUp } from "lucide-react";
 
 const DETECTION_TYPES = [
@@ -59,6 +60,7 @@ const DETECTION_TYPES = [
 
 export default function SuspiciousPage() {
   const router = useRouter();
+  const { selectedDatasetId } = useAuth();
   const [activeType, setActiveType] = useState("circular");
   const [results, setResults] = useState([]);
   const [rankingData, setRankingData] = useState([]);
@@ -70,17 +72,17 @@ export default function SuspiciousPage() {
     setLoading(true);
     setError(null);
     if (activeType === "risk_ranking") {
-      getRiskRanking({ limit: 100 })
+      getRiskRanking({ limit: 100, datasetId: selectedDatasetId })
         .then((data) => setRankingData(data.wallets || []))
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     } else {
-      getSuspicious({ type: activeType, threshold, limit: 30 })
+      getSuspicious({ type: activeType, threshold, limit: 30, datasetId: selectedDatasetId })
         .then((data) => setResults(data.suspiciousWallets || []))
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     }
-  }, [activeType, threshold]);
+  }, [activeType, threshold, selectedDatasetId]);
 
   return (
     <div className="p-6 lg:p-8">
