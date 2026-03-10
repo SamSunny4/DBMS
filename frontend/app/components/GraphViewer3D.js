@@ -238,18 +238,20 @@ export default function GraphViewer3D({
     vizSettings.orbitSpeed,
   ]);
 
-  // Dynamically import 3d-force-graph
+  // Import both 3d-force-graph and three together so window.__THREE__ is
+  // guaranteed to be set before the graph (and nodeThreeObject) are ever created.
   useEffect(() => {
     let cancelled = false;
-    import("3d-force-graph").then((mod) => {
-      if (!cancelled) setForceGraph3DModule(() => mod.default);
+    Promise.all([
+      import("3d-force-graph"),
+      import("three"),
+    ]).then(([graphMod, THREE]) => {
+      if (!cancelled) {
+        window.__THREE__ = THREE;
+        setForceGraph3DModule(() => graphMod.default);
+      }
     });
     return () => { cancelled = true; };
-  }, []);
-
-  // Expose THREE globally
-  useEffect(() => {
-    import("three").then((THREE) => { window.__THREE__ = THREE; });
   }, []);
 
   // Keep settingsRef current so RAF callbacks always read latest values
@@ -721,14 +723,16 @@ export default function GraphViewer3D({
 
     if (!_reduceAnim) {
       const orbitTick = () => {
-        if (!graphRef.current) return;
+        if (effectCleanup.cancelled || !graphRef.current) return;
         if (!userInteractedRef.current) {
           orbitAngle += settingsRef.current.orbitSpeed;
           const r = 500;
-          graphRef.current.cameraPosition(
-            { x: r * Math.sin(orbitAngle), y: 50 * Math.sin(orbitAngle * 0.5), z: r * Math.cos(orbitAngle) },
-            { x: 0, y: 0, z: 0 }
-          );
+          try {
+            graphRef.current.cameraPosition(
+              { x: r * Math.sin(orbitAngle), y: 50 * Math.sin(orbitAngle * 0.5), z: r * Math.cos(orbitAngle) },
+              { x: 0, y: 0, z: 0 }
+            );
+          } catch (_) { return; }
         }
         orbitRef.current = requestAnimationFrame(orbitTick);
       };
@@ -776,6 +780,7 @@ export default function GraphViewer3D({
     window.addEventListener("keyup", onKeyUp);
 
     const wasdTick = () => {
+      if (effectCleanup.cancelled) return;
       if (!graphRef.current) {
         wasdFrameRef.current = requestAnimationFrame(wasdTick);
         return;
