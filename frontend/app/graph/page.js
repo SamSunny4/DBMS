@@ -1,39 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Filter, Route, AlertCircle, Box, Grid2x2, Palette, Timer, Crosshair, Zap, Settings } from "lucide-react";
-import LoadingSpinner from "../components/LoadingSpinner";
 
 // Dynamic import — force-graph uses canvas/D3 APIs not available server-side
-const GraphViewer = dynamic(() => import("../components/GraphViewer"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center">
-      <LoadingSpinner text="Loading graph..." />
-    </div>
-  ),
-});
+const GraphViewer = dynamic(() => import("../components/GraphViewer"), { ssr: false });
 import { getGraph, getTransactionPath, getMyPreferences, saveMyPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/authContext";
 
 // Dynamic import for 3D viewer (not SSR-compatible due to WebGL/Three.js)
-const GraphViewer3D = dynamic(() => import("../components/GraphViewer3D"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center">
-      <LoadingSpinner text="Loading 3D engine..." />
-    </div>
-  ),
-});
+const GraphViewer3D = dynamic(() => import("../components/GraphViewer3D"), { ssr: false });
 
 export default function GraphExplorerPageWrapper() {
-  return (
-    <Suspense fallback={<LoadingSpinner text="Loading graph explorer..." />}>
-      <GraphExplorerPage />
-    </Suspense>
-  );
+  return <GraphExplorerPage />;
 }
 
 function GraphExplorerPage() {
@@ -41,7 +22,7 @@ function GraphExplorerPage() {
   const searchParams = useSearchParams();
   const { user, selectedDatasetId } = useAuth();
   const [elements, setElements] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [graphInfo, setGraphInfo] = useState(null);
   const [highlightPath, setHighlightPath] = useState([]);
@@ -512,9 +493,11 @@ function GraphExplorerPage() {
 
       {/* Graph */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <LoadingSpinner text="Loading graph data..." />
+        {loading && !elements ? (
+          <div className="flex h-full items-center justify-center bg-[#050816]">
+            <p className="text-xs font-medium tracking-widest text-indigo-300/50 uppercase animate-pulse">
+              Fetching data
+            </p>
           </div>
         ) : error ? (
           <div className="flex h-full items-center justify-center">

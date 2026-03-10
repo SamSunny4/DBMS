@@ -206,6 +206,22 @@ export default function GraphViewer3D({
   const cameraVelRef = useRef({ x: 0, y: 0, z: 0 });
   const [ForceGraph3DModule, setForceGraph3DModule] = useState(null);
   const [graphReady, setGraphReady] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+  const [overlayDone, setOverlayDone] = useState(false);
+
+  // When graph is ready, trigger the fade-out transition
+  useEffect(() => {
+    if (graphReady && !fadeOut && !overlayDone) {
+      setFadeOut(true);
+    }
+  }, [graphReady, fadeOut, overlayDone]);
+
+  // Reset loading state when data changes
+  useEffect(() => {
+    setGraphReady(false);
+    setFadeOut(false);
+    setOverlayDone(false);
+  }, [elements]);
 
   onNodeClickRef.current = onNodeClick;
 
@@ -417,7 +433,7 @@ export default function GraphViewer3D({
         const { r, g, b } = parseColor(node.color);
         const col = new T.Color(r / 255, g / 255, b / 255);
 
-        const geo = new T.SphereGeometry(s * 0.5, 32, 32);
+        const geo = new T.SphereGeometry(s * 0.5, 16, 16);
         const mat = new T.MeshStandardMaterial({
           color: col,
           emissive: col,
@@ -516,10 +532,10 @@ export default function GraphViewer3D({
       )
 
       // ── Physics engine parameters ──
-      .d3AlphaDecay(0.015)
-      .d3VelocityDecay(0.3)
-      .warmupTicks(120)
-      .cooldownTicks(300)
+      .d3AlphaDecay(0.028)
+      .d3VelocityDecay(0.35)
+      .warmupTicks(80)
+      .cooldownTicks(200)
 
       // ── Interaction ──
       .onNodeClick((node) => {
@@ -933,38 +949,18 @@ export default function GraphViewer3D({
         tabIndex={0}
       />
 
-      {/* Premium loading overlay */}
-      {!graphReady && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050816]">
-          {/* Animated concentric rings */}
-          <div className="relative h-24 w-24">
-            <div
-              className="absolute inset-0 rounded-full border border-indigo-500/30"
-              style={{ animation: "graphPulseRing 2.4s ease-in-out infinite" }}
-            />
-            <div
-              className="absolute inset-2 rounded-full border border-indigo-400/40"
-              style={{ animation: "graphPulseRing 2.4s ease-in-out 0.3s infinite" }}
-            />
-            <div
-              className="absolute inset-4 rounded-full border border-indigo-300/50"
-              style={{ animation: "graphPulseRing 2.4s ease-in-out 0.6s infinite" }}
-            />
-            {/* Centre dot */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="h-2 w-2 rounded-full bg-indigo-400"
-                style={{ animation: "graphDotPulse 1.6s ease-in-out infinite" }}
-              />
-            </div>
-          </div>
-          <p
-            className="mt-5 text-xs font-medium tracking-widest text-indigo-300/70 uppercase"
-            style={{ animation: "graphTextFade 2s ease-in-out infinite" }}
-          >
-            Rendering graph
-          </p>
-          {/* Inline keyframes */}
+      {/* ── Fakeload overlay ─────────────────────────────────────────
+           Phase 1 (!graphReady && !fadeOut):
+             fakeload.png shown behind pulsing rings.
+             CSS blur on the image animates: 24px → 10px (while graph renders in bg).
+             Dark tint overlay keeps the rings readable.
+           Phase 2 (fadeOut && !overlayDone):
+             The whole overlay fades: blur 10px→0, opacity 1→0 → real graph revealed.
+           Phase 3 (overlayDone):
+             Overlay removed from DOM entirely.
+      ────────────────────────────────────────────────────────────── */}
+      {!overlayDone && (
+        <>
           <style>{`
             @keyframes graphPulseRing {
               0%, 100% { transform: scale(1); opacity: 0.3; }
@@ -978,8 +974,77 @@ export default function GraphViewer3D({
               0%, 100% { opacity: 0.4; }
               50%      { opacity: 0.9; }
             }
+            /* Fake image gradually comes into "focus" while graph renders */
+            @keyframes fakeImgFocusing {
+              0%   { filter: blur(24px) brightness(0.35); }
+              60%  { filter: blur(10px) brightness(0.5); }
+              100% { filter: blur(10px) brightness(0.5); }
+            }
+            /* Final reveal: blur 10px→0, dark tint lifts, whole overlay fades out */
+            @keyframes fakeOverlayReveal {
+              0%   { opacity: 1; }
+              100% { opacity: 0; }
+            }
+            @keyframes fakeImgReveal {
+              0%   { filter: blur(10px) brightness(0.5); }
+              100% { filter: blur(0px)  brightness(1); }
+            }
           `}</style>
-        </div>
+
+          {/* Fake image — always present while overlay is mounted */}
+          <div
+            className="absolute inset-0 z-40"
+            style={{
+              backgroundImage: "url('/fakeload.png')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              animation: fadeOut
+                ? "fakeImgReveal 1s ease-out forwards"
+                : "fakeImgFocusing 6s ease-out forwards",
+            }}
+          />
+
+          {/* Dark tint + pulsing rings — only shown while loading (not during reveal) */}
+          {!fadeOut && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050816]/70">
+              <div className="relative h-24 w-24">
+                <div
+                  className="absolute inset-0 rounded-full border border-indigo-500/30"
+                  style={{ animation: "graphPulseRing 2.4s ease-in-out infinite" }}
+                />
+                <div
+                  className="absolute inset-2 rounded-full border border-indigo-400/40"
+                  style={{ animation: "graphPulseRing 2.4s ease-in-out 0.3s infinite" }}
+                />
+                <div
+                  className="absolute inset-4 rounded-full border border-indigo-300/50"
+                  style={{ animation: "graphPulseRing 2.4s ease-in-out 0.6s infinite" }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div
+                    className="h-2 w-2 rounded-full bg-indigo-400"
+                    style={{ animation: "graphDotPulse 1.6s ease-in-out infinite" }}
+                  />
+                </div>
+              </div>
+              <p
+                className="mt-5 text-xs font-medium tracking-widest text-indigo-300/70 uppercase"
+                style={{ animation: "graphTextFade 2s ease-in-out infinite" }}
+              >
+                Rendering graph
+              </p>
+            </div>
+          )}
+
+          {/* Reveal curtain — fades the whole overlay out once graph is ready */}
+          {fadeOut && (
+            <div
+              className="absolute inset-0 z-50 pointer-events-none bg-[#050816]/70"
+              style={{ animation: "fakeOverlayReveal 1s ease-out forwards" }}
+              onAnimationEnd={() => setOverlayDone(true)}
+            />
+          )}
+        </>
       )}
 
       {/* Legend */}
